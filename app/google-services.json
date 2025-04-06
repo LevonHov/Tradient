@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "191717734875",
+    "project_id": "tradient-db559",
+    "storage_bucket": "tradient-db559.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:191717734875:android:5235c28cc37ecf970e0ffe",
+        "android_client_info": {
+          "package_name": "com.example.tradient"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD6C2xwYBMYTC6Fpe8fiF3MFOSNvTbRlzw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

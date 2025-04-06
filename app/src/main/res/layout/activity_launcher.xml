@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="16dp"
+    tools:context=".LauncherActivity">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Tradient"
+        android:textSize="28sp"
+        android:textStyle="bold"
+        android:textAlignment="center"
+        android:layout_marginBottom="32dp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Select Application Mode"
+        android:textSize="18sp"
+        android:textAlignment="center"
+        android:layout_marginBottom="32dp" />
+
+    <Button
+        android:id="@+id/standardAppButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Standard Mode"
+        android:layout_marginBottom="16dp"
+        android:padding="16dp" />
+
+    <Button
+        android:id="@+id/arbitrageButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Arbitrage Demo"
+        android:layout_marginBottom="16dp"
+        android:padding="16dp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Standard Mode: Regular exchange connections\nArbitrage Demo: Standard arbitrage scanning"
+        android:textSize="12sp"
+        android:textAlignment="center"
+        android:layout_marginTop="32dp" />
+
+</LinearLayout> 

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+
+    <!-- Background circle with gradient -->
+    <path
+        android:pathData="M60,60m-60,0a60,60 0,1 1,120 0a60,60 0,1 1,-120 0"
+        android:fillColor="#121621"/>
+    
+    <!-- Outer glow effect -->
+    <path
+        android:pathData="M60,60m-55,0a55,55 0,1 1,110 0a55,55 0,1 1,-110 0"
+        android:strokeWidth="2"
+        android:strokeColor="#0052FF"/>
+    
+    <!-- Stylized T formed by market arrows -->
+    <path
+        android:pathData="M40,30L80,30A2,2 0,0 1,82 32L82,38A2,2 0,0 1,80 40L40,40A2,2 0,0 1,38 38L38,32A2,2 0,0 1,40 30z"
+        android:fillColor="#0052FF"/>
+    
+    <!-- Vertical line of T -->
+    <path
+        android:pathData="M54,40L66,40A2,2 0,0 1,68 42L68,80A2,2 0,0 1,66 82L54,82A2,2 0,0 1,52 80L52,42A2,2 0,0 1,54 40z"
+        android:fillColor="#0052FF"/>
+    
+    <!-- Upward arrow (right) -->
+    <path
+        android:pathData="M78,70L78,50L88,60z"
+        android:fillColor="#9945FF"/>
+    
+    <!-- Downward arrow (left) -->
+    <path
+        android:pathData="M42,50L42,70L32,60z"
+        android:fillColor="#9945FF"/>
+    
+</vector> 

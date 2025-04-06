@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base colors -->
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    
+    <!-- Primary Colors -->
+    <color name="neon_blue">#0052FF</color>
+    <color name="dark_blue_variant">#003CBB</color>
+    <color name="primary">@color/neon_blue</color>
+    
+    <!-- Secondary Colors -->
+    <color name="electric_purple">#9945FF</color>
+    
+    <!-- Functional Colors -->
+    <color name="success_green">#00C087</color>
+    <color name="alert_orange">#FF9332</color>
+    <color name="error_red">#FF3B30</color>
+    <color name="profit_positive">#00C087</color>
+    <color name="profit_negative">#FF3B30</color>
+    <color name="profit_neutral">#FFC107</color>
+    
+    <!-- Neutrals -->
+    <color name="background">#121621</color>
+    <color name="dark_background">@color/background</color>
+    <color name="card_background">#1E2130</color>
+    <color name="input_field_background">#2A2F42</color>
+    <color name="status_bar">#0F121B</color>
+    <color name="neutral_gray">#8A8D98</color>
+    
+    <!-- Text Colors -->
+    <color name="primary_text">#FFFFFF</color>
+    <color name="secondary_text">#B4B6BD</color>
+    <color name="disabled_text">#646876</color>
+    
+    <!-- System Colors -->
+    <color name="colorPrimary">@color/neon_blue</color>
+    <color name="colorPrimaryDark">@color/dark_blue_variant</color>
+    <color name="colorAccent">@color/electric_purple</color>
+    <color name="colorBackground">@color/background</color>
+    
+    <!-- Chart Colors -->
+    <color name="chart_buy_color">#4CAF50</color>
+    <color name="chart_sell_color">#F44336</color>
+    <color name="chart_buy_color_transparent">#334CAF50</color>
+    <color name="chart_sell_color_transparent">#33F44336</color>
+    <color name="chart_spread_color">#FFD700</color>
+    
+    <!-- New colors -->
+    <color name="buy_color">#4CAF50</color>
+    <color name="sell_color">#F44336</color>
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#B3FFFFFF</color>
+
+    <!-- Material Design Colors -->
+    <color name="md_theme_light_primary">@color/neon_blue</color>
+    <color name="md_theme_light_onPrimary">@color/white</color>
+    <color name="md_theme_light_primaryContainer">@color/dark_blue_variant</color>
+    <color name="md_theme_light_onPrimaryContainer">@color/white</color>
+    <color name="md_theme_light_secondary">@color/electric_purple</color>
+    <color name="md_theme_light_onSecondary">@color/white</color>
+    <color name="md_theme_light_secondaryContainer">@color/electric_purple</color>
+    <color name="md_theme_light_onSecondaryContainer">@color/white</color>
+    <color name="md_theme_light_error">@color/error_red</color>
+    <color name="md_theme_light_errorContainer">@color/error_red</color>
+    <color name="md_theme_light_onError">@color/white</color>
+    <color name="md_theme_light_onErrorContainer">@color/white</color>
+    <color name="md_theme_light_background">@color/background</color>
+    <color name="md_theme_light_onBackground">@color/white</color>
+    <color name="md_theme_light_surface">@color/card_background</color>
+    <color name="md_theme_light_onSurface">@color/white</color>
+    <color name="md_theme_light_surfaceVariant">@color/input_field_background</color>
+    <color name="md_theme_light_onSurfaceVariant">@color/secondary_text</color>
+    <color name="md_theme_light_outline">@color/neutral_gray</color>
+    <color name="md_theme_light_inverseOnSurface">@color/background</color>
+    <color name="md_theme_light_inverseSurface">@color/white</color>
+    <color name="md_theme_light_inversePrimary">@color/neon_blue</color>
+    <color name="md_theme_light_shadow">@color/black</color>
+    <color name="md_theme_light_surfaceTint">@color/neon_blue</color>
+    <color name="md_theme_light_outlineVariant">@color/neutral_gray</color>
+    <color name="md_theme_light_scrim">@color/black</color>
+</resources>

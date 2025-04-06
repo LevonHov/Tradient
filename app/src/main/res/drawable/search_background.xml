@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Subtle shadow bottom -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#22000000" />
+            <corners android:radius="20dp" />
+            <padding android:bottom="1dp" />
+        </shape>
+    </item>
+    <!-- Subtle shadow right -->
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#22000000" />
+            <corners android:radius="20dp" />
+            <padding android:right="1dp" />
+        </shape>
+    </item>
+    <!-- Main background -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:startColor="#26293A"
+                android:endColor="#22263A"
+                android:angle="135" />
+            <corners android:radius="20dp" />
+        </shape>
+    </item>
+    <!-- Glass effect overlay -->
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="20dp" />
+            <stroke android:width="0.5dp" android:color="#33FFFFFF" />
+        </shape>
+    </item>
+</layer-list> 
