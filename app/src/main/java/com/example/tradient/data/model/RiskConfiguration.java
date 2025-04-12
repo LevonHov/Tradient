@@ -28,17 +28,17 @@ public class RiskConfiguration {
     /**
      * Volume normalization factor for slippage calculations
      */
-    private double volumeNormalization = 10000.0;
+    private double volumeNormalization = 1000000.0; // 1M volume is considered liquid
     
     /**
      * Liquidity threshold for high risk classification
      */
-    private double lowLiquidityThreshold = 0.3;
+    private double lowLiquidityThreshold = 0.7; // 70% threshold for low liquidity warnings
     
     /**
      * Volatility threshold for high risk classification
      */
-    private double highVolatilityThreshold = 0.7;
+    private double highVolatilityThreshold = 0.03; // 3% volatility is threshold
     
     /**
      * Number of price points to keep for volatility calculation
@@ -66,6 +66,16 @@ public class RiskConfiguration {
     private int slippageHistorySize = 100;
     
     /**
+     * Maximum slippage threshold
+     */
+    private double maxSlippageThreshold = 0.01; // 1% slippage threshold
+    
+    /**
+     * Minimum market depth factor
+     */
+    private double minMarketDepthFactor = 0.1; // 10% of average volume
+    
+    /**
      * Default constructor
      */
     public RiskConfiguration() {
@@ -79,7 +89,8 @@ public class RiskConfiguration {
                            double lowLiquidityThreshold, double highVolatilityThreshold,
                            int priceHistorySize, double volatilitySpikeThreshold,
                            double marketStressThreshold, boolean enableSlippageHistory,
-                           int slippageHistorySize) {
+                           int slippageHistorySize, double maxSlippageThreshold,
+                           double minMarketDepthFactor) {
         this.maxSlippagePercent = maxSlippagePercent;
         this.baseSlippage = baseSlippage;
         this.spreadImpactFactor = spreadImpactFactor;
@@ -91,6 +102,8 @@ public class RiskConfiguration {
         this.marketStressThreshold = marketStressThreshold;
         this.enableSlippageHistory = enableSlippageHistory;
         this.slippageHistorySize = slippageHistorySize;
+        this.maxSlippageThreshold = maxSlippageThreshold;
+        this.minMarketDepthFactor = minMarketDepthFactor;
     }
 
     public double getMaxSlippagePercent() {
@@ -180,6 +193,22 @@ public class RiskConfiguration {
     public void setSlippageHistorySize(int slippageHistorySize) {
         this.slippageHistorySize = slippageHistorySize;
     }
+
+    public double getMaxSlippageThreshold() {
+        return maxSlippageThreshold;
+    }
+
+    public void setMaxSlippageThreshold(double maxSlippageThreshold) {
+        this.maxSlippageThreshold = maxSlippageThreshold;
+    }
+
+    public double getMinMarketDepthFactor() {
+        return minMarketDepthFactor;
+    }
+
+    public void setMinMarketDepthFactor(double minMarketDepthFactor) {
+        this.minMarketDepthFactor = minMarketDepthFactor;
+    }
     
     /**
      * Get the minimum acceptable liquidity level
@@ -214,7 +243,7 @@ public class RiskConfiguration {
      * @return The minimum market depth
      */
     public double getMarketDepthMinimum() {
-        return 0.3; // Default value, can be made configurable
+        return minMarketDepthFactor;
     }
     
     /**

@@ -16,6 +16,7 @@ import com.example.tradient.domain.risk.SlippageManagerService;
 import com.example.tradient.repository.ExchangeRepository;
 import com.example.tradient.data.model.RiskAssessment;
 import com.example.tradient.domain.risk.RiskCalculator;
+import com.example.tradient.util.RiskAssessmentAdapter;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -494,11 +495,8 @@ public class ArbitrageViewModel extends ViewModel {
                     opportunity.setBuyFeePercentage(buyFee);
                     opportunity.setSellFeePercentage(sellFee);
                     
-                    // Set a temporary placeholder for profit
-                    opportunity.setNetProfitPercentage(0.0);
-                    
                     // Set empty risk assessment
-                    opportunity.setRiskAssessment(new RiskAssessment());
+                    RiskAssessmentAdapter.setRiskAssessment(opportunity, new RiskAssessment());
                     
                     // Set viability to false until profit calculation is reimplemented
                     opportunity.setViable(false);
@@ -570,11 +568,10 @@ public class ArbitrageViewModel extends ViewModel {
      */
     private double calculateOptimalPositionSize(ArbitrageOpportunity opportunity, double availableCapital, double maxPositionPct) {
         // Validate inputs
-        if (opportunity == null || opportunity.getRiskAssessment() == null) {
+        RiskAssessment risk = RiskAssessmentAdapter.getRiskAssessment(opportunity);
+        if (opportunity == null || risk == null) {
             return 0.0;
         }
-
-        RiskAssessment risk = opportunity.getRiskAssessment();
 
         // Extract key risk factors
         double overallRisk = risk.getOverallRiskScore();

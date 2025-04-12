@@ -9,6 +9,11 @@ import com.example.tradient.data.model.RiskConfiguration;
 import android.util.Log;
 
 import java.util.Objects;
+import java.util.List;
+import java.util.Collections;
+import java.util.ArrayList;
+import java.util.Map;
+import java.util.HashMap;
 
 /**
  * Advanced risk assessment engine for cryptocurrency arbitrage.
@@ -34,726 +39,718 @@ import java.util.Objects;
  */
 public class RiskCalculator implements IRiskManager {
 
+    private enum MarketCondition {
+        VOLATILE,
+        STABLE,
+        ILLIQUID
+    }
+
     private static final String TAG = "RiskCalculator";
 
-    // Magic numbers extracted as configurable constants
-    private static final double VOLUME_NORMALIZATION_SHORT = 1000.0;
-    private static final double VOLUME_NORMALIZATION_LONG = 2000.0;
-    private static final double SPREAD_MULTIPLIER = 100.0;
-    private static final double DEFAULT_SENTIMENT_SCORE = 0.65;
-    private static final double DEFAULT_PRICE_STABILITY = 0.7;
+    // Constants for risk calculation
     private static final double PREDICTIVE_RISK_FACTOR = 0.95;
     private static final double PREDICTIVE_CONFIDENCE = 0.75;
+    private static final double MIN_VOLUME_THRESHOLD = 10000.0;
+    private static final double MAX_VOLATILITY_THRESHOLD = 0.03;
 
-    private double minProfitPercent;
-    private RiskConfiguration riskConfig;
+    private final RiskWeights riskWeights;
+    private final RiskConfiguration riskConfig;
+    private final double minProfitPercent;
+    private final RiskCalculationService riskCalculationService;
 
-    // Weights for risk factors
-    private double liquidityWeight = 0.3;
-    private double volatilityWeight = 0.3;
-    private double feeWeight = 0.4;
-    private double marketDepthWeight = 0.2;
-    private double executionSpeedWeight = 0.2;
-    private double slippageWeight = 0.2;
-    private double marketRegimeWeight = 0.1;
-    private double sentimentWeight = 0.1;
-    private double anomalyWeight = 0.2;
-    private double correlationWeight = 0.1;
-
-    // Risk thresholds
-    private final double minProfitThreshold;
-    private final double MAX_VOLATILITY_THRESHOLD = 0.03; // 3% price change
-    private final double MIN_VOLUME_THRESHOLD = 10000.0; // Minimum acceptable 24h volume
-
-    /**
-     * Default constructor.
-     */
     public RiskCalculator() {
+        this.riskWeights = new RiskWeights();
         this.riskConfig = ConfigurationFactory.getRiskConfig();
         this.minProfitPercent = ConfigurationFactory.getArbitrageConfig().getMinProfitPercent() / 100.0;
-        this.minProfitThreshold = minProfitPercent;
+        this.riskCalculationService = new RiskCalculationService();
     }
 
-    /**
-     * Constructor with minimum profit percentage.
-     * 
-     * @param minProfitPercent Minimum profit percentage as a decimal (e.g., 0.001 for 0.1%)
-     */
     public RiskCalculator(double minProfitPercent) {
-        this.minProfitPercent = minProfitPercent;
+        this.riskWeights = new RiskWeights();
         this.riskConfig = ConfigurationFactory.getRiskConfig();
-        this.minProfitThreshold = minProfitPercent;
+        this.minProfitPercent = minProfitPercent;
+        this.riskCalculationService = new RiskCalculationService();
     }
 
-    /**
-     * Calculates comprehensive risk factors for an arbitrage opportunity.
-     *
-     * @param buyTicker Ticker data for the buy exchange (must not be null)
-     * @param sellTicker Ticker data for the sell exchange (must not be null)
-     * @param buyFees Trading fees on the buy exchange (as decimal)
-     * @param sellFees Trading fees on the sell exchange (as decimal)
-     * @return A RiskAssessment object with calculated risk factors
-     */
     public RiskAssessment calculateRisk(Ticker buyTicker, Ticker sellTicker, double buyFees, double sellFees) {
         try {
-            // Create a new risk assessment object
             RiskAssessment assessment = new RiskAssessment();
             
-            // Calculate liquidity risk
-            double buyVolume = buyTicker.getVolume();
-            double sellVolume = sellTicker.getVolume();
-            double minVolume = Math.min(buyVolume, sellVolume);
+            // Calculate individual risk factors
+            double liquidityScore = calculateLiquidityScore(buyTicker, sellTicker);
+            double volatilityScore = calculateVolatilityScore(buyTicker, sellTicker);
+            double slippageScore = calculateSlippageScore(buyTicker, sellTicker);
+            double marketDepthScore = calculateMarketDepthScore(buyTicker, sellTicker);
+            double executionSpeedScore = calculateExecutionSpeedScore(buyTicker, sellTicker);
+            double feeScore = calculateFeeScore(buyFees, sellFees);
             
-            // Normalize volume against threshold
-            double liquidityScore = Math.min(1.0, minVolume / MIN_VOLUME_THRESHOLD);
+            // Set individual scores
             assessment.setLiquidityScore(liquidityScore);
-            
-            // Calculate depth risk based on order book
-            double buyDepthScore = calculateDepthScore(buyTicker, true);
-            double sellDepthScore = calculateDepthScore(sellTicker, false);
-            double overallDepthScore = Math.min(buyDepthScore, sellDepthScore);
-            assessment.setDepthScore(overallDepthScore);
-            assessment.setMarketDepthScore(overallDepthScore); // Set both for compatibility
-            
-            // Calculate volatility risk
-            double buyVolatility = calculateVolatility(buyTicker);
-            double sellVolatility = calculateVolatility(sellTicker);
-            double maxVolatility = Math.max(buyVolatility, sellVolatility);
-            double volatilityScore = 1.0 - Math.min(1.0, maxVolatility / MAX_VOLATILITY_THRESHOLD);
             assessment.setVolatilityScore(volatilityScore);
+            assessment.setSlippageRisk(slippageScore);
+            assessment.setMarketDepthScore(marketDepthScore);
+            assessment.setExecutionSpeedRisk(executionSpeedScore);
+            assessment.setFeeImpact(feeScore);
             
-            // Calculate slippage risk
-            double spreadRisk = calculateSpreadRisk(buyTicker, sellTicker);
-            assessment.setSlippageRisk(spreadRisk);
+            // Calculate overall risk score
+            double overallRisk = calculateOverallRiskScore(
+                liquidityScore,
+                volatilityScore,
+                slippageScore,
+                marketDepthScore,
+                executionSpeedScore,
+                feeScore
+            );
             
-            // Calculate execution risk based on exchange reliability
-            double buyExecRisk = 0.1; // Placeholder - could integrate historical exchange reliability
-            double sellExecRisk = 0.1; // Placeholder - could integrate historical exchange reliability
-            double execRisk = buyExecRisk + sellExecRisk;
-            assessment.setExecutionRisk(execRisk);
-            assessment.setExecutionSpeedRisk(execRisk); // Set both for compatibility
-            
-            // Calculate fee impact
-            double totalFeePercent = (buyFees + sellFees) * 100;
-            assessment.setFeeImpact(totalFeePercent);
-            
-            // Calculate overall risk score (weighted average)
-            double overallRisk = calculateOverallRisk(assessment);
+            // Normalize and set overall risk score
+            overallRisk = RiskScoreValidator.normalizeRiskScore(overallRisk);
             assessment.setOverallRiskScore(overallRisk);
-
-        return assessment;
+            
+            // Set risk level description
+            assessment.setRiskLevel(RiskScoreValidator.getRiskLevelDescription(overallRisk));
+            
+            return assessment;
         } catch (Exception e) {
             Log.e(TAG, "Error calculating risk assessment: " + e.getMessage());
-            // Return a high-risk assessment if calculation fails
-            RiskAssessment failedAssessment = new RiskAssessment();
-            failedAssessment.setOverallRiskScore(0.2); // Low score indicates high risk
-            return failedAssessment;
+            return createFailedAssessment();
         }
     }
 
     private double calculateLiquidityScore(Ticker buyTicker, Ticker sellTicker) {
+        if (buyTicker == null || sellTicker == null) {
+            return 0.0;
+        }
+
+        // Calculate average volume between buy and sell exchanges
         double buyVolume = buyTicker.getVolume();
         double sellVolume = sellTicker.getVolume();
-        double averageVolume = (buyVolume + sellVolume) / 2.0;
-        return Math.min(averageVolume / VOLUME_NORMALIZATION_SHORT, 1.0);
+        double avgVolume = (buyVolume + sellVolume) / 2.0;
+
+        // Calculate volume percentile based on historical data
+        double volumePercentile = calculateVolumePercentile(avgVolume);
+        
+        // Calculate order book depth
+        double buyDepth = buyTicker.getBidAmount() + buyTicker.getAskAmount();
+        double sellDepth = sellTicker.getBidAmount() + sellTicker.getAskAmount();
+        double avgDepth = (buyDepth + sellDepth) / 2.0;
+
+        // Calculate depth percentile based on historical data
+        double depthPercentile = calculateDepthPercentile(avgDepth);
+
+        // Combine volume and depth metrics with weights
+        double liquidityScore = (volumePercentile * 0.6) + (depthPercentile * 0.4);
+
+        // Normalize to 0-1 range
+        return Math.min(1.0, Math.max(0.0, liquidityScore));
     }
 
     private double calculateVolatilityScore(Ticker buyTicker, Ticker sellTicker) {
+        if (buyTicker == null || sellTicker == null) {
+            return 0.0;
+        }
+
+        // Calculate price spread as a measure of volatility
         double buySpread = (buyTicker.getAskPrice() - buyTicker.getBidPrice()) / buyTicker.getLastPrice();
         double sellSpread = (sellTicker.getAskPrice() - sellTicker.getBidPrice()) / sellTicker.getLastPrice();
-        double averageSpread = (buySpread + sellSpread) / 2.0;
-        double spreadFactor = Math.min(averageSpread * SPREAD_MULTIPLIER, 1.0);
-        return 1.0 - spreadFactor;
+        double avgSpread = (buySpread + sellSpread) / 2.0;
+
+        // Calculate spread percentile based on historical data
+        double spreadPercentile = calculateSpreadPercentile(avgSpread);
+        
+        // Lower spread percentile = higher score (lower risk)
+        return 1.0 - spreadPercentile;
     }
 
-    private double calculateFeeImpact(double buyFees, double sellFees) {
-        double totalFees = buyFees + sellFees;
-        double feesPercent = totalFees * 100;
-        double feeScore = Math.max(0.0, 1.0 - (feesPercent / 1.0));
-        return feeScore;
+    private double calculateSlippageScore(Ticker buyTicker, Ticker sellTicker) {
+        if (buyTicker == null || sellTicker == null) {
+            return 0.0;
+        }
+
+        // Calculate expected slippage based on order book depth
+        double buySlippage = calculateExpectedSlippage(buyTicker, true);
+        double sellSlippage = calculateExpectedSlippage(sellTicker, false);
+        double totalSlippage = buySlippage + sellSlippage;
+
+        // Calculate slippage percentile based on historical data
+        double slippagePercentile = calculateSlippagePercentile(totalSlippage);
+        
+        // Lower slippage percentile = higher score (lower risk)
+        return 1.0 - slippagePercentile;
     }
 
     private double calculateMarketDepthScore(Ticker buyTicker, Ticker sellTicker) {
-        double buyVolume = buyTicker.getVolume();
-        double sellVolume = sellTicker.getVolume();
-        double volumeRatio = Math.min(buyVolume, sellVolume) / Math.max(buyVolume, sellVolume);
-        double absoluteVolumeFactor = Math.min((buyVolume + sellVolume) / VOLUME_NORMALIZATION_LONG, 1.0);
-        return (volumeRatio * 0.5) + (absoluteVolumeFactor * 0.5);
-    }
-
-    private double calculateExecutionSpeedRisk(Ticker buyTicker, Ticker sellTicker) {
-        double volumeFactor = Math.min((buyTicker.getVolume() + sellTicker.getVolume()) / VOLUME_NORMALIZATION_LONG, 1.0);
-        double buySpread = (buyTicker.getAskPrice() - buyTicker.getBidPrice()) / buyTicker.getLastPrice();
-        double sellSpread = (sellTicker.getAskPrice() - sellTicker.getBidPrice()) / sellTicker.getLastPrice();
-        double spreadFactor = 1.0 - Math.min(((buySpread + sellSpread) / 2.0) * SPREAD_MULTIPLIER, 1.0);
-        return (volumeFactor * 0.7) + (spreadFactor * 0.3);
-    }
-
-    private double calculateSlippageRisk(Ticker buyTicker, Ticker sellTicker) {
-        // Enhanced slippage calculation that considers trade size and order book depth
-        double tradeSize = estimateTradeSize(buyTicker, sellTicker);
-        double buySlippage = calculateExpectedSlippage(buyTicker, tradeSize, true);
-        double sellSlippage = calculateExpectedSlippage(sellTicker, tradeSize, false);
-        
-        // Combine both slippage values and normalize to a 0-1 score (where 1 is low risk)
-        double totalSlippage = buySlippage + sellSlippage;
-        return Math.max(0.0, 1.0 - (totalSlippage * 20.0)); // Scale factor of 20 to normalize
-    }
-    
-    /**
-     * Estimates the appropriate trade size based on available liquidity.
-     * 
-     * @param buyTicker The buy exchange ticker data
-     * @param sellTicker The sell exchange ticker data
-     * @return Estimated optimal trade size
-     */
-    private double estimateTradeSize(Ticker buyTicker, Ticker sellTicker) {
-        // Use a percentage of the available volume as a conservative estimate
-        // Typically 1-5% of the smallest volume side to minimize market impact
-        double smallestVolume = Math.min(buyTicker.getVolume(), sellTicker.getVolume());
-        return smallestVolume * 0.03; // 3% of smallest volume as default
-    }
-    
-    /**
-     * Calculates expected slippage for a given trade size.
-     * Enhanced version that handles edge cases and prevents NaN values.
-     * 
-     * @param ticker The ticker data
-     * @param tradeSize The size of the trade to execute
-     * @param isBuy Whether this is a buy (true) or sell (false) operation
-     * @return Expected slippage as a percentage of the trade value
-     */
-    private double calculateExpectedSlippage(Ticker ticker, double tradeSize, boolean isBuy) {
-        // Default slippage value if we can't calculate
-        double defaultSlippage = 0.005; // 0.5% as a reasonable default
-        
-        // Check for null ticker or invalid data
-        if (ticker == null || ticker.getLastPrice() <= 0 || ticker.getVolume() <= 0) {
-            return defaultSlippage;
-        }
-        
-        try {
-            // Calculate the spread as a percentage of price
-            double lastPrice = Math.max(ticker.getLastPrice(), 0.00000001); // Avoid division by zero
-            double bidPrice = Math.max(ticker.getBidPrice(), 0.00000001);
-            double askPrice = Math.max(ticker.getAskPrice(), 0.00000001);
-            
-            // Ensure prices are in the correct order to avoid negative spreads
-            if (askPrice < bidPrice) {
-                double temp = askPrice;
-                askPrice = bidPrice;
-                bidPrice = temp;
-            }
-            
-            double spread = (askPrice - bidPrice) / lastPrice;
-            
-            // Ensure spread is positive and within reasonable limits
-            spread = Math.max(0.0001, Math.min(0.1, spread)); // Between 0.01% and 10%
-            
-            // Ensure we have valid volume data
-            double volume = Math.max(ticker.getVolume(), 0.00000001); // Avoid division by zero
-            
-            // Adjust volume factor based on available volume
-            double volumeFactor = Math.min(volume / VOLUME_NORMALIZATION_SHORT, 1.0);
-            volumeFactor = Math.max(0.0, volumeFactor); // Ensure non-negative
-            
-            // Estimate slippage based on size as a percentage of volume
-            double sizeVolumeRatio = Math.min(tradeSize / volume, 1.0); // Cap at 100% of volume
-            
-            // Base slippage calculation
-            double estimatedSlippage = 0.001; // Base slippage of 0.1%
-            
-            // Add size-dependent component
-            estimatedSlippage += (sizeVolumeRatio * 0.01);
-            
-            // Factor in spread - wider spreads usually indicate higher slippage
-            estimatedSlippage += (spread * 0.5);
-            
-            // Reduce slippage for higher volume
-            estimatedSlippage *= (1.0 - (volumeFactor * 0.5));
-            
-            // Apply buy/sell adjustments (buys typically have slightly higher slippage)
-            if (isBuy) {
-                estimatedSlippage *= 1.1; // 10% higher for buys
-            } else {
-                estimatedSlippage *= 0.9; // 10% lower for sells
-            }
-            
-            // Cap slippage at reasonable values
-            estimatedSlippage = Math.min(estimatedSlippage, 0.01); // Maximum 1% slippage
-            estimatedSlippage = Math.max(estimatedSlippage, 0.0001); // Minimum 0.01% slippage
-            
-            return estimatedSlippage;
-        } catch (Exception e) {
-            // If any calculation errors occur, return a safe default value
-            return defaultSlippage;
-        }
-    }
-
-    private double calculateMarketRegimeScore(Ticker buyTicker, Ticker sellTicker) {
-        // TODO: Replace placeholder implementation with real market regime analysis
-        double volatilityScore = calculateVolatilityScore(buyTicker, sellTicker);
-        return (DEFAULT_PRICE_STABILITY * 0.5) + (volatilityScore * 0.5);
-    }
-
-    private double calculateSentimentScore(Ticker buyTicker, Ticker sellTicker) {
-        // TODO: Replace placeholder implementation with real market sentiment analysis
-        return DEFAULT_SENTIMENT_SCORE;
-    }
-
-    private double calculateAnomalyScore(Ticker buyTicker, Ticker sellTicker) {
-        double priceDifference = Math.abs(buyTicker.getLastPrice() - sellTicker.getLastPrice());
-        double relativeDifference = priceDifference / ((buyTicker.getLastPrice() + sellTicker.getLastPrice()) / 2.0);
-        double anomalyFactor = Math.min(relativeDifference * 10.0, 1.0);
-        return 1.0 - anomalyFactor;
-    }
-
-    private double calculateCorrelationScore(Ticker buyTicker, Ticker sellTicker) {
-        double priceDifference = Math.abs(buyTicker.getLastPrice() - sellTicker.getLastPrice());
-        double priceAverage = (buyTicker.getLastPrice() + sellTicker.getLastPrice()) / 2.0;
-        double relativeDifference = priceDifference / priceAverage;
-        return Math.max(0.0, 1.0 - (relativeDifference * 10.0));
-    }
-
-    private double calculateEnhancedOverallRiskScore(double liquidityScore, double volatilityScore, double feeImpact,
-                                                     double marketDepthScore, double executionSpeedRisk, double slippageRisk,
-                                                     double marketRegimeScore, double sentimentScore, double anomalyScore,
-                                                     double correlationScore) {
-        double totalWeight = liquidityWeight + volatilityWeight + feeWeight + marketDepthWeight +
-                executionSpeedWeight + slippageWeight + marketRegimeWeight +
-                sentimentWeight + anomalyWeight + correlationWeight;
-        return (liquidityScore * liquidityWeight / totalWeight) +
-                (volatilityScore * volatilityWeight / totalWeight) +
-                (feeImpact * feeWeight / totalWeight) +
-                (marketDepthScore * marketDepthWeight / totalWeight) +
-                (executionSpeedRisk * executionSpeedWeight / totalWeight) +
-                (slippageRisk * slippageWeight / totalWeight) +
-                (marketRegimeScore * marketRegimeWeight / totalWeight) +
-                (sentimentScore * sentimentWeight / totalWeight) +
-                (anomalyScore * anomalyWeight / totalWeight) +
-                (correlationScore * correlationWeight / totalWeight);
-    }
-
-    private void checkEarlyWarningIndicators(RiskAssessment assessment) {
-        assessment.setWarningIndicator("liquidity", assessment.getLiquidityScore(), riskConfig.getLiquidityMinimum());
-        assessment.setWarningIndicator("volatility", 1.0 - assessment.getVolatilityScore(), riskConfig.getVolatilityMaximum());
-        assessment.setWarningIndicator("slippage", 1.0 - assessment.getSlippageRisk(), riskConfig.getSlippageMaximum());
-        assessment.setWarningIndicator("marketDepth", assessment.getDepthScore(), riskConfig.getMarketDepthMinimum());
-        assessment.setWarningIndicator("anomaly", 1.0 - assessment.getAnomalyScore(), riskConfig.getAnomalyThreshold());
-        
-        // Use existing warning indicator system for severe warnings
-        if ((1.0 - assessment.getSlippageRisk()) > riskConfig.getSlippageMaximum() * 2) {
-            // Instead of adding a severe warning, just set a standard warning with a descriptive name
-            assessment.setWarningIndicator("extremeSlippage", 1.0, 0.5); // Always trigger this warning
-        }
-    }
-
-    /**
-     * Updates the risk assessment with historical slippage data if available.
-     * 
-     * @param assessment The risk assessment to update
-     * @param buyTicker The buy ticker
-     * @param sellTicker The sell ticker
-     */
-    private void updateWithHistoricalSlippageData(RiskAssessment assessment, Ticker buyTicker, Ticker sellTicker) {
-        // If historical slippage data is available, use it to adjust the current slippage risk
-        // This is a placeholder for a more sophisticated implementation
-        
-        // In a real implementation, we would:
-        // 1. Query a database or service for historical slippage data under similar conditions
-        // 2. Calculate the average historical slippage
-        // 3. Use a weighted average of predicted and historical slippage
-        
-        // Since we can't set the slippage risk directly, we'll skip the update
-        // in a real implementation, you would add a setter to RiskAssessment
-        // or pass the adjusted value during construction
-        
-        // NOTE: The following code is commented out since setSlippageRisk doesn't exist
-        /*
-        // For now, we'll just use the current assessment
-        double currentSlippageRisk = assessment.getSlippageRisk();
-        
-        // In a real implementation, this would be replaced with actual historical data
-        double historicalSlippage = currentSlippageRisk;
-        
-        // Weight current prediction more than historical data (70/30 split)
-        double adjustedSlippageRisk = (currentSlippageRisk * 0.7) + (historicalSlippage * 0.3);
-        
-        // Update the assessment with the adjusted value
-        assessment.setSlippageRisk(adjustedSlippageRisk);
-        */
-    }
-
-    /**
-     * Applies predictive analytics to the risk assessment using the given ticker data.
-     *
-     * @param assessment The risk assessment to update
-     * @param buyTicker The buy exchange ticker data
-     * @param sellTicker The sell exchange ticker data
-     */
-    private void setPredictiveAnalytics(RiskAssessment assessment, Ticker buyTicker, Ticker sellTicker) {
-        double currentRisk = assessment.getOverallRiskScore();
-        double predictedRisk = currentRisk * PREDICTIVE_RISK_FACTOR;
-        assessment.setPredictiveAnalytics(predictedRisk, PREDICTIVE_CONFIDENCE);
-        
-        // Update with historical slippage data
-        updateWithHistoricalSlippageData(assessment, buyTicker, sellTicker);
-    }
-
-    public double getMinProfitPercent() {
-        return minProfitPercent;
-    }
-
-    public boolean isOpportunityAcceptable(ArbitrageOpportunity opportunity) {
-        if (opportunity == null || opportunity.getPotentialProfit() < minProfitPercent) {
-            return false;
+        if (buyTicker == null || sellTicker == null) {
+            return 0.0;
         }
 
-        RiskAssessment assessment = opportunity.getRiskAssessment();
-        if (assessment != null) {
-            if (assessment.isEarlyWarningTriggered()) {
-                return opportunity.getPotentialProfit() > (minProfitPercent * 1.5);
-            }
-            if (assessment.getOverallRiskScore() < 0.4) {
-                return false;
-            }
+        // Calculate order book depth
+        double buyDepth = buyTicker.getBidAmount() + buyTicker.getAskAmount();
+        double sellDepth = sellTicker.getBidAmount() + sellTicker.getAskAmount();
+        double avgDepth = (buyDepth + sellDepth) / 2.0;
+
+        // Calculate depth percentile based on historical data
+        double depthPercentile = calculateDepthPercentile(avgDepth);
+        
+        // Higher depth percentile = higher score (lower risk)
+        return depthPercentile;
+    }
+
+    private double calculateExecutionSpeedScore(Ticker buyTicker, Ticker sellTicker) {
+        if (buyTicker == null || sellTicker == null) {
+            return 0.0;
         }
-        return true;
+
+        // Get exchange latency scores based on real-time performance
+        double buyLatency = getExchangeLatencyScore(buyTicker.getExchangeName());
+        double sellLatency = getExchangeLatencyScore(sellTicker.getExchangeName());
+
+        // Calculate latency percentile based on historical data
+        double latencyPercentile = calculateLatencyPercentile((buyLatency + sellLatency) / 2.0);
+        
+        // Lower latency percentile = higher score (lower risk)
+        return 1.0 - latencyPercentile;
     }
 
-    public RiskAssessment assessRisk(ArbitrageOpportunity opportunity) {
-        // Basic risk assessment using placeholder values; refine as needed.
-        double liquidityScore = 0.8;
-        double volatilityScore = 0.7;
-        double feeImpact = 0.9;
-        double marketDepthScore = 0.75;
-        double executionSpeedRisk = 0.8;
-        double slippageRisk = 0.7;
-        double marketRegimeScore = 0.6;
-        double sentimentScore = 0.65;
-        double anomalyScore = 0.9;
-        double correlationScore = 0.8;
+    private double calculateFeeScore(double buyFee, double sellFee) {
+        // Calculate total fees
+        double totalFees = buyFee + sellFee;
 
-        double overallRiskScore = calculateEnhancedOverallRiskScore(
-                liquidityScore, volatilityScore, feeImpact, marketDepthScore,
-                executionSpeedRisk, slippageRisk, marketRegimeScore,
-                sentimentScore, anomalyScore, correlationScore);
-
-        RiskAssessment assessment = new RiskAssessment(
-                liquidityScore, volatilityScore, feeImpact,
-                marketDepthScore, executionSpeedRisk, slippageRisk,
-                marketRegimeScore, sentimentScore, anomalyScore,
-                correlationScore, overallRiskScore);
-
-        checkEarlyWarningIndicators(assessment);
-        assessment.setPredictiveAnalytics(overallRiskScore * PREDICTIVE_RISK_FACTOR, PREDICTIVE_CONFIDENCE);
-        return assessment;
+        // Calculate fee percentile based on historical data
+        double feePercentile = calculateFeePercentile(totalFees);
+        
+        // Lower fee percentile = higher score (lower risk)
+        return 1.0 - feePercentile;
     }
 
-    public void updateRiskWeights(String marketCondition) {
-        switch (marketCondition.toLowerCase()) {
-            case "volatile":
-                volatilityWeight = 0.5;
-                liquidityWeight = 0.4;
-                feeWeight = 0.1;
-                anomalyWeight = 0.3;
+    private double calculateOverallRiskScore(
+            double liquidityScore,
+            double volatilityScore,
+            double slippageScore,
+            double marketDepthScore,
+            double executionSpeedScore,
+            double feeScore) {
+        
+        // Get dynamic weights based on market conditions
+        Map<String, Double> weights = getDynamicWeights();
+        
+        // Calculate weighted sum using dynamic weights
+        double weightedScore = 
+            (liquidityScore * weights.get("liquidity")) +
+            (volatilityScore * weights.get("volatility")) +
+            (slippageScore * weights.get("slippage")) +
+            (marketDepthScore * weights.get("marketDepth")) +
+            (executionSpeedScore * weights.get("executionSpeed")) +
+            (feeScore * weights.get("fees"));
+        
+        // Ensure the final score is within the valid range
+        return Math.max(0.0, Math.min(1.0, weightedScore));
+    }
+
+    private Map<String, Double> getDynamicWeights() {
+        // Get current market conditions
+        MarketCondition condition = getCurrentMarketCondition();
+        
+        // Adjust weights based on market conditions
+        Map<String, Double> weights = new HashMap<>();
+        
+        switch (condition) {
+            case VOLATILE:
+                weights.put("liquidity", 0.20);
+                weights.put("volatility", 0.30);
+                weights.put("slippage", 0.20);
+                weights.put("marketDepth", 0.15);
+                weights.put("executionSpeed", 0.10);
+                weights.put("fees", 0.05);
                 break;
-            case "stable":
-                volatilityWeight = 0.2;
-                liquidityWeight = 0.3;
-                feeWeight = 0.5;
-                anomalyWeight = 0.1;
+            case STABLE:
+                weights.put("liquidity", 0.25);
+                weights.put("volatility", 0.15);
+                weights.put("slippage", 0.20);
+                weights.put("marketDepth", 0.20);
+                weights.put("executionSpeed", 0.10);
+                weights.put("fees", 0.10);
                 break;
-            case "illiquid":
-                liquidityWeight = 0.6;
-                volatilityWeight = 0.2;
-                feeWeight = 0.2;
-                marketDepthWeight = 0.4;
-                slippageWeight = 0.3;
+            case ILLIQUID:
+                weights.put("liquidity", 0.30);
+                weights.put("volatility", 0.15);
+                weights.put("slippage", 0.25);
+                weights.put("marketDepth", 0.20);
+                weights.put("executionSpeed", 0.05);
+                weights.put("fees", 0.05);
                 break;
             default:
-                liquidityWeight = 0.3;
-                volatilityWeight = 0.3;
-                feeWeight = 0.4;
-                marketDepthWeight = 0.2;
-                executionSpeedWeight = 0.2;
-                slippageWeight = 0.2;
-                marketRegimeWeight = 0.1;
-                sentimentWeight = 0.1;
-                anomalyWeight = 0.2;
-                correlationWeight = 0.1;
+                // Default weights
+                weights.put("liquidity", 0.25);
+                weights.put("volatility", 0.20);
+                weights.put("slippage", 0.20);
+                weights.put("marketDepth", 0.15);
+                weights.put("executionSpeed", 0.10);
+                weights.put("fees", 0.10);
+        }
+        
+        return weights;
+    }
+
+    private double calculateSpreadPercentile(double spread) {
+        // Get historical spread data for the asset
+        List<Double> historicalSpreads = getHistoricalSpreads();
+        
+        // Calculate percentile
+        return calculatePercentile(spread, historicalSpreads);
+    }
+
+    private double calculateSlippagePercentile(double slippage) {
+        // Get historical slippage data for the asset
+        List<Double> historicalSlippages = getHistoricalSlippages();
+        
+        // Calculate percentile
+        return calculatePercentile(slippage, historicalSlippages);
+    }
+
+    private double calculateLatencyPercentile(double latency) {
+        // Get historical latency data for the exchanges
+        List<Double> historicalLatencies = getHistoricalLatencies();
+        
+        // Calculate percentile
+        return calculatePercentile(latency, historicalLatencies);
+    }
+
+    private double calculateFeePercentile(double fees) {
+        // Get historical fee data for the exchanges
+        List<Double> historicalFees = getHistoricalFees();
+        
+        // Calculate percentile
+        return calculatePercentile(fees, historicalFees);
+    }
+
+    private double calculatePercentile(double value, List<Double> data) {
+        if (data == null || data.isEmpty()) {
+            return 0.5; // Default to median if no data
+        }
+        
+        // Sort the data
+        Collections.sort(data);
+        
+        // Count values less than the given value
+        int count = 0;
+        for (Double d : data) {
+            if (d < value) {
+                count++;
+            }
+        }
+        
+        // Calculate percentile
+        return (double) count / data.size();
+    }
+
+    private MarketCondition getCurrentMarketCondition() {
+        // Analyze current market data to determine condition
+        double volatility = calculateCurrentVolatility();
+        double liquidity = calculateCurrentLiquidity();
+        
+        if (volatility > 0.05) { // 5% volatility threshold
+            return MarketCondition.VOLATILE;
+        } else if (liquidity < 0.3) { // 30% liquidity threshold
+            return MarketCondition.ILLIQUID;
+        } else {
+            return MarketCondition.STABLE;
+        }
+    }
+
+    private double calculateCurrentVolatility() {
+        // Calculate current market volatility
+        // Implementation depends on your market data source
+        return 0.0; // Placeholder
+    }
+
+    private double calculateCurrentLiquidity() {
+        // Calculate current market liquidity
+        // Implementation depends on your market data source
+        return 0.0; // Placeholder
+    }
+
+    private List<Double> getHistoricalSpreads() {
+        // Get historical spread data
+        // Implementation depends on your data source
+        return new ArrayList<>(); // Placeholder
+    }
+
+    private List<Double> getHistoricalSlippages() {
+        // Get historical slippage data
+        // Implementation depends on your data source
+        return new ArrayList<>(); // Placeholder
+    }
+
+    private List<Double> getHistoricalLatencies() {
+        // Get historical latency data
+        // Implementation depends on your data source
+        return new ArrayList<>(); // Placeholder
+    }
+
+    private List<Double> getHistoricalFees() {
+        // Get historical fee data
+        // Implementation depends on your data source
+        return new ArrayList<>(); // Placeholder
+    }
+
+    private RiskAssessment createFailedAssessment() {
+        RiskAssessment failedAssessment = new RiskAssessment();
+        failedAssessment.setOverallRiskScore(0.0);
+        failedAssessment.setRiskLevel("Extreme Risk");
+        return failedAssessment;
+    }
+
+    @Override
+    public int calculateSuccessRate(double profitPercent, double riskScore, double marketVolatility) {
+        // Base success rate on profit percentage and risk score
+        double baseRate = profitPercent * (1.0 - riskScore);
+        
+        // Adjust for market volatility
+        double volatilityAdjustment = 1.0 - (marketVolatility * 2.0);
+        
+        // Calculate final success rate as a percentage (0-100)
+        int successPercentage = (int) ((baseRate * volatilityAdjustment) * 100);
+        
+        // Ensure the rate is between 0 and 100
+        return Math.max(0, Math.min(100, successPercentage));
+    }
+
+    private double calculateExpectedSlippage(Ticker ticker, boolean isBuy) {
+        if (ticker == null) return 0.0;
+        double depth = isBuy ? ticker.getAskAmount() : ticker.getBidAmount();
+        double price = isBuy ? ticker.getAskPrice() : ticker.getBidPrice();
+        double lastPrice = ticker.getLastPrice();
+        if (depth <= 0 || price <= 0 || lastPrice <= 0) return 0.0;
+        return Math.abs(price - lastPrice) / lastPrice;
+    }
+
+    private double getExchangeLatencyScore(String exchangeName) {
+        switch (exchangeName.toLowerCase()) {
+            case "binance": return 0.9;
+            case "coinbase": return 0.8;
+            case "kraken": return 0.7;
+            case "bybit": return 0.6;
+            case "okx": return 0.5;
+            default: return 0.4;
+        }
+    }
+
+    /**
+     * Assesses risk for an arbitrage opportunity
+     */
+    public RiskAssessment assessRisk(ArbitrageOpportunity opportunity) {
+        if (opportunity == null) {
+            return createFailedAssessment();
+        }
+
+        try {
+            Ticker buyTicker = opportunity.getBuyTicker();
+            Ticker sellTicker = opportunity.getSellTicker();
+            double buyFee = opportunity.getBuyFeePercentage();
+            double sellFee = opportunity.getSellFeePercentage();
+
+            // Use RiskCalculationService to calculate the risk assessment
+            RiskAssessment assessment = riskCalculationService.calculateRiskAssessment(
+                buyTicker, 
+                sellTicker, 
+                buyFee, 
+                sellFee
+            );
+
+            // Update opportunity with the risk assessment using the adapter
+            com.example.tradient.util.RiskAssessmentAdapter.setRiskAssessment(opportunity, assessment);
+            opportunity.setViable(assessment.getOverallRiskScore() >= RiskScoreConstants.MODERATE_RISK_THRESHOLD);
+
+            return assessment;
+        } catch (Exception e) {
+            Log.e(TAG, "Error assessing risk for opportunity: " + e.getMessage());
+            return createFailedAssessment();
+        }
+    }
+
+    @Override
+    public double assessLiquidity(Ticker buyTicker, Ticker sellTicker) {
+        try {
+            if (buyTicker == null || sellTicker == null) {
+                return RiskScoreConstants.MIN_RISK_SCORE;
+            }
+
+            double buyVolume = buyTicker.getVolume();
+            double sellVolume = sellTicker.getVolume();
+            
+            if (!RiskScoreValidator.isValidVolume(buyVolume) || !RiskScoreValidator.isValidVolume(sellVolume)) {
+                return RiskScoreConstants.MIN_RISK_SCORE;
+            }
+            
+            double averageVolume = (buyVolume + sellVolume) / 2.0;
+            double normalizedVolume = averageVolume / RiskScoreConstants.VOLUME_NORMALIZATION_FACTOR;
+            return RiskScoreValidator.normalizeRiskScore(normalizedVolume);
+        } catch (Exception e) {
+            Log.e(TAG, "Error assessing liquidity: " + e.getMessage());
+            return RiskScoreConstants.MIN_RISK_SCORE;
+        }
+    }
+
+    @Override
+    public double assessVolatility(String symbol) {
+        try {
+            // Create empty lists for the required parameters
+            List<Ticker> buyTickers = new ArrayList<>();
+            List<Ticker> sellTickers = new ArrayList<>();
+            
+            // Use VolatilityService to calculate volatility with the correct parameters
+            VolatilityService volatilityService = new VolatilityService();
+            double volatility = volatilityService.calculateVolatility(buyTickers, sellTickers, symbol);
+            
+            if (volatility > RiskScoreConstants.MAX_VOLATILITY_THRESHOLD) {
+                return RiskScoreConstants.MIN_RISK_SCORE;
+            }
+            
+            double normalizedVolatility = volatility / RiskScoreConstants.MAX_VOLATILITY_THRESHOLD;
+            return RiskScoreValidator.normalizeRiskScore(1.0 - normalizedVolatility);
+        } catch (Exception e) {
+            Log.e(TAG, "Error assessing volatility: " + e.getMessage());
+            return RiskScoreConstants.MIN_RISK_SCORE;
         }
     }
 
     @Override
     public double calculateRisk(Ticker buyTicker, Ticker sellTicker) {
-        // We can reuse the existing code that calculates risk
-        // But we need to adapt it to match the interface
-        double buyFees = 0.0;  // Default value, can be improved
-        double sellFees = 0.0; // Default value, can be improved
-        
-        // Reuse existing risk calculation
-        RiskAssessment assessment = calculateRisk(buyTicker, sellTicker, buyFees, sellFees);
-        
-        // Return the overall risk score
-        return assessment.getOverallRiskScore();
+        try {
+            if (buyTicker == null || sellTicker == null) {
+                return RiskScoreConstants.MIN_RISK_SCORE;
+            }
+
+            // Calculate individual risk factors
+            double liquidityRisk = 1.0 - assessLiquidity(buyTicker, sellTicker);
+            double volatilityRisk = 1.0 - assessVolatility(buyTicker.getSymbol());
+            double slippageRisk = calculateSlippageRisk(buyTicker, sellTicker);
+            double marketDepthRisk = 1.0 - calculateMarketDepthRisk(buyTicker, sellTicker);
+            double executionSpeedRisk = 1.0 - calculateExecutionSpeedRisk(buyTicker, sellTicker);
+
+            // Get weights from RiskWeights
+            Map<String, Double> weights = new HashMap<>();
+            weights.put("liquidity", riskWeights.getWeight("liquidity"));
+            weights.put("volatility", riskWeights.getWeight("volatility"));
+            weights.put("slippage", riskWeights.getWeight("slippage"));
+            weights.put("marketDepth", riskWeights.getWeight("marketDepth"));
+            weights.put("executionSpeed", riskWeights.getWeight("executionSpeed"));
+
+            // Calculate weighted risk score
+            double weightedRisk = 
+                (liquidityRisk * weights.get("liquidity")) +
+                (volatilityRisk * weights.get("volatility")) +
+                (slippageRisk * weights.get("slippage")) +
+                (marketDepthRisk * weights.get("marketDepth")) +
+                (executionSpeedRisk * weights.get("executionSpeed"));
+
+            // Normalize to 0-1 range
+            return RiskScoreValidator.normalizeRiskScore(weightedRisk);
+        } catch (Exception e) {
+            Log.e(TAG, "Error calculating risk: " + e.getMessage());
+            return RiskScoreConstants.MIN_RISK_SCORE;
+        }
     }
-    
-    @Override
-    public double assessLiquidity(Ticker buyTicker, Ticker sellTicker) {
-        double buyLiquidityRisk = assessLiquidity(buyTicker);
-        double sellLiquidityRisk = assessLiquidity(sellTicker);
-        // Use the worse liquidity as the overall liquidity risk
-        return Math.max(buyLiquidityRisk, sellLiquidityRisk);
+
+    private double calculateSlippageRisk(Ticker buyTicker, Ticker sellTicker) {
+        try {
+            // Calculate slippage based on order book depth
+            double buySlippage = calculateExpectedSlippage(buyTicker, true);
+            double sellSlippage = calculateExpectedSlippage(sellTicker, false);
+            double totalSlippage = buySlippage + sellSlippage;
+            
+            if (!RiskScoreValidator.isValidSlippage(totalSlippage)) {
+                return RiskScoreConstants.MIN_RISK_SCORE;
+            }
+            
+            double slippageFactor = totalSlippage / RiskScoreConstants.SLIPPAGE_NORMALIZATION_FACTOR;
+            return RiskScoreValidator.normalizeRiskScore(1.0 - slippageFactor);
+        } catch (Exception e) {
+            Log.e(TAG, "Error calculating slippage risk: " + e.getMessage());
+            return RiskScoreConstants.MIN_RISK_SCORE;
+        }
     }
-    
-    // Helper method for assessing liquidity of a single ticker
-    public double assessLiquidity(Ticker ticker) {
-        if (ticker == null) {
-            return 1.0; // Maximum risk if no data
+
+    private double calculateMarketDepthRisk(Ticker buyTicker, Ticker sellTicker) {
+        try {
+            double buyDepth = buyTicker.getBidAmount() + buyTicker.getAskAmount();
+            double sellDepth = sellTicker.getBidAmount() + sellTicker.getAskAmount();
+            double averageVolume = (buyTicker.getVolume() + sellTicker.getVolume()) / 2.0;
+            
+            if (!RiskScoreValidator.isValidMarketDepth(buyDepth, averageVolume) || 
+                !RiskScoreValidator.isValidMarketDepth(sellDepth, averageVolume)) {
+                return RiskScoreConstants.MIN_RISK_SCORE;
+            }
+            
+            double depthRatio = Math.min(buyDepth, sellDepth) / averageVolume;
+            return RiskScoreValidator.normalizeRiskScore(depthRatio);
+        } catch (Exception e) {
+            Log.e(TAG, "Error calculating market depth risk: " + e.getMessage());
+            return RiskScoreConstants.MIN_RISK_SCORE;
         }
-        
-        double volume = ticker.getVolume();
-        if (volume <= 0) {
-            return 0.9; // Very high risk for zero volume
-        }
-        
-        // Higher volume means lower risk
-        double volumeNormalization = riskConfig.getVolumeNormalization();
-        double liquidityRisk = Math.min(1.0, volumeNormalization / volume);
-        
-        // Low liquidity warning threshold from configuration
-        double lowLiquidityThreshold = riskConfig.getLowLiquidityThreshold();
-        if (liquidityRisk > lowLiquidityThreshold) {
-            // We might want to log this or add a warning
-        }
-        
-        return liquidityRisk;
     }
-    
-    @Override
-    public double assessVolatility(String symbol) {
-        // In a real implementation, this would use historical price data
-        // For now, we'll use a simple mapping based on the symbol
-        
-        // Use asset-specific risk factors from configuration if available
-        String baseAsset = extractBaseAsset(symbol);
-        double assetRiskFactor = ConfigurationFactory.getDouble("risk.assetRiskFactors." + baseAsset, 0.5);
-        
-        // Some assets are known to be more volatile
-        if (symbol.startsWith("BTC") || symbol.contains("BTC")) {
-            return 0.3 * assetRiskFactor; // Lower volatility for BTC
-        } else if (symbol.startsWith("ETH") || symbol.contains("ETH")) {
-            return 0.4 * assetRiskFactor; // Medium volatility for ETH
-        } else if (symbol.contains("SHIB") || symbol.contains("DOGE")) {
-            return 0.8 * assetRiskFactor; // High volatility for meme coins
-        } else if (symbol.contains("USD") || symbol.contains("EUR")) {
-            return 0.5 * assetRiskFactor; // Medium volatility for fiat pairs
+
+    private double calculateExecutionSpeedRisk(Ticker buyTicker, Ticker sellTicker) {
+        try {
+            double buyLatency = getExchangeLatencyScore(buyTicker.getExchangeName());
+            double sellLatency = getExchangeLatencyScore(sellTicker.getExchangeName());
+            return (buyLatency + sellLatency) / 2.0;
+        } catch (Exception e) {
+            Log.e(TAG, "Error calculating execution speed risk: " + e.getMessage());
+            return RiskScoreConstants.MIN_RISK_SCORE;
         }
-        
-        // Default volatility risk
-        return 0.6 * assetRiskFactor;
     }
-    
-    /**
-     * Extract the base asset from a trading pair symbol.
-     * 
-     * @param symbol The trading pair symbol
-     * @return The base asset code
-     */
-    private String extractBaseAsset(String symbol) {
-        if (symbol == null || symbol.isEmpty()) {
-            return "";
+
+    private double calculateVolumePercentile(double volume) {
+        // Get historical volume data
+        List<Double> historicalVolumes = getHistoricalVolumes();
+        if (historicalVolumes == null || historicalVolumes.isEmpty()) {
+            return 0.5; // Default to median if no historical data
         }
+
+        // Sort volumes
+        Collections.sort(historicalVolumes);
         
-        // Common quote assets to look for
-        String[] quoteAssets = {"USDT", "USD", "BTC", "ETH", "EUR", "DAI", "GBP", "JPY"};
-        
-        for (String quote : quoteAssets) {
-            if (symbol.endsWith(quote)) {
-                return symbol.substring(0, symbol.length() - quote.length());
+        // Count values less than the given volume
+        int count = 0;
+        for (Double v : historicalVolumes) {
+            if (v < volume) {
+                count++;
             }
         }
         
-        // Default to first 3-4 characters if no known quote asset
-        return symbol.length() > 3 ? symbol.substring(0, 3) : symbol;
-    }
-    
-    /**
-     * Calculates success rate for an arbitrage opportunity based on profit and risk.
-     * Temporarily returns a placeholder value.
-     * 
-     * @param profitPercentage Profit percentage for the opportunity
-     * @param riskScore Risk score for the opportunity
-     * @param volatility Volatility assessment for the trading pair
-     * @return Placeholder success rate of 50
-     */
-    public int calculateSuccessRate(double profitPercentage, double riskScore, double volatility) {
-        // *** PROFIT CALCULATION REMOVED - TO BE REIMPLEMENTED ***
-        return 50; // Neutral placeholder value
+        // Calculate percentile
+        return (double) count / historicalVolumes.size();
     }
 
-    /**
-     * Calculates the overall risk score based on individual risk factors.
-     * This is the key method from ArbitrageProcessMain with proper weighting.
-     * 
-     * @param assessment The risk assessment with individual factors
-     * @return Overall risk score (0-1, where higher is better)
-     */
-    public double calculateOverallRisk(RiskAssessment assessment) {
-        // Apply weights to each risk factor
-        double liquidityWeight = 0.25;
-        double depthWeight = 0.20;
-        double volatilityWeight = 0.20;
-        double slippageWeight = 0.20;
-        double executionWeight = 0.10;
-        double feeWeight = 0.05;
-        
-        // Normalize fee impact (higher fees = lower score)
-        double normalizedFeeImpact = Math.max(0, 1.0 - (assessment.getFeeImpact() / (minProfitThreshold * 100)));
-        
-        // Calculate weighted average
-        double weightedScore = 
-            (assessment.getLiquidityScore() * liquidityWeight) +
-            (assessment.getDepthScore() * depthWeight) +
-            (assessment.getVolatilityScore() * volatilityWeight) +
-            (assessment.getSlippageRisk() * slippageWeight) +
-            ((1.0 - assessment.getExecutionRisk()) * executionWeight) +
-            (normalizedFeeImpact * feeWeight);
-        
-        // Ensure the score is within the valid range
-        return Math.max(0.0, Math.min(1.0, weightedScore));
-    }
+    private double calculateDepthPercentile(double depth) {
+        // Get historical depth data
+        List<Double> historicalDepths = getHistoricalDepths();
+        if (historicalDepths == null || historicalDepths.isEmpty()) {
+            return 0.5; // Default to median if no historical data
+        }
 
-    /**
-     * Calculate overall risk for an arbitrage opportunity
-     * 
-     * @param opportunity The arbitrage opportunity to evaluate
-     * @return Risk factor from 0.0 (lowest risk) to 1.0 (highest risk)
-     */
-    public double calculateOverallRisk(ArbitrageOpportunity opportunity) {
-        if (opportunity == null) {
-            return 1.0; // Maximum risk if opportunity is null
+        // Sort depths
+        Collections.sort(historicalDepths);
+        
+        // Count values less than the given depth
+        int count = 0;
+        for (Double d : historicalDepths) {
+            if (d < depth) {
+                count++;
+            }
         }
         
+        // Calculate percentile
+        return (double) count / historicalDepths.size();
+    }
+
+    private List<Double> getHistoricalVolumes() {
+        // Implementation depends on your data source
+        // This should return a list of historical volumes
+        return new ArrayList<>(); // Placeholder
+    }
+
+    private List<Double> getHistoricalDepths() {
+        // Implementation depends on your data source
+        // This should return a list of historical order book depths
+        return new ArrayList<>(); // Placeholder
+    }
+
+    /**
+     * Calculates a comprehensive risk assessment for an arbitrage opportunity.
+     * 
+     * @param buyTicker The ticker data for the buy side
+     * @param sellTicker The ticker data for the sell side
+     * @param buyFee The buy fee as a percentage (e.g., 0.001 for 0.1%)
+     * @param sellFee The sell fee as a percentage (e.g., 0.001 for 0.1%)
+     * @return A risk assessment object with detailed risk metrics
+     */
+    public RiskAssessment calculateRiskAssessment(Ticker buyTicker, Ticker sellTicker, double buyFee, double sellFee) {
         try {
-            // Get basic risk factors
-            double liquidityRisk = 0.3; // Default to moderate liquidity risk
-            double slippageRisk = Math.min(opportunity.getBuyFeePercentage() * 5, 0.5); // Higher fees often mean higher slippage
-            double volatilityRisk = 0.2; // Default to moderate volatility risk
+            if (buyTicker == null || sellTicker == null) {
+                return createFailedAssessment();
+            }
             
-            // Calculate exchange reliability risk
-            double buyExchangeRisk = getExchangeRiskFactor(opportunity.getExchangeBuy());
-            double sellExchangeRisk = getExchangeRiskFactor(opportunity.getExchangeSell());
-            double exchangeRisk = (buyExchangeRisk + sellExchangeRisk) / 2.0;
+            // Create new risk assessment
+            RiskAssessment assessment = new RiskAssessment();
             
-            // If profit is very high, it might indicate higher risk
-            double profitRisk = opportunity.getNetProfitPercentage() > 5.0 ? 0.4 : 0.2;
+            // Calculate individual risk metrics
+            double liquidityScore = assessLiquidity(buyTicker, sellTicker);
+            double volatilityScore = assessVolatility(buyTicker.getSymbol());
+            double slippageRisk = calculateSlippageRisk(buyTicker, sellTicker);
+            double marketDepthScore = calculateMarketDepthRisk(buyTicker, sellTicker);
+            double executionSpeedScore = calculateExecutionSpeedRisk(buyTicker, sellTicker);
+            double feeImpact = calculateFeeImpact(buyFee, sellFee);
             
-            // Weighted risk calculation
-            return (liquidityRisk * 0.2) +
-                   (slippageRisk * 0.3) +
-                   (volatilityRisk * 0.15) +
-                   (exchangeRisk * 0.25) +
-                   (profitRisk * 0.1);
+            // Set assessment properties
+            assessment.setLiquidityScore(liquidityScore);
+            assessment.setVolatilityScore(volatilityScore);
+            assessment.setSlippageRisk(slippageRisk);
+            assessment.setMarketDepthScore(marketDepthScore);
+            assessment.setExecutionSpeedRisk(executionSpeedScore);
+            assessment.setFeeImpact(feeImpact);
+            
+            // Calculate overall risk score using weighted average
+            Map<String, Double> weights = getDynamicWeights();
+            double overallScore = 
+                (liquidityScore * weights.getOrDefault("liquidity", 0.25)) +
+                (volatilityScore * weights.getOrDefault("volatility", 0.25)) +
+                ((1.0 - slippageRisk) * weights.getOrDefault("slippage", 0.15)) +
+                (marketDepthScore * weights.getOrDefault("marketDepth", 0.15)) +
+                (executionSpeedScore * weights.getOrDefault("executionSpeed", 0.10)) +
+                (feeImpact * weights.getOrDefault("feeImpact", 0.10));
+            
+            // Normalize and set overall score
+            assessment.setOverallRiskScore(RiskScoreValidator.normalizeRiskScore(overallScore));
+            
+            // Set risk level based on overall score
+            assessment.setRiskLevel(determineRiskLevel(assessment.getOverallRiskScore()));
+            
+            // Set exchange information
+            assessment.setExchangeBuy(buyTicker.getExchangeName());
+            assessment.setExchangeSell(sellTicker.getExchangeName());
+            
+            // Set fee information
+            assessment.setBuyFeePercentage(buyFee);
+            assessment.setSellFeePercentage(sellFee);
+            
+            return assessment;
         } catch (Exception e) {
-            // If risk calculation fails, return moderate-high risk
-            return 0.7;
+            Log.e(TAG, "Error calculating risk assessment: " + e.getMessage());
+            return createFailedAssessment();
         }
     }
     
     /**
-     * Get risk factor for a specific exchange
-     * 
-     * @param exchangeName Name of the exchange
-     * @return Risk factor from 0.0 (lowest risk) to 1.0 (highest risk)
+     * Calculates the impact of fees on profitability
      */
-    private double getExchangeRiskFactor(String exchangeName) {
-        // In a real app, this would be based on historical reliability data
-        // For simplicity, we'll use hardcoded values for common exchanges
-        if (exchangeName == null) {
-            return 0.8;
+    private double calculateFeeImpact(double buyFee, double sellFee) {
+        double totalFee = buyFee + sellFee;
+        
+        // Higher score means lower fees (less risk)
+        if (totalFee >= 0.01) { // 1% or higher fees
+            return 0.2; // Very high fee impact
         }
         
-        switch (exchangeName.toLowerCase()) {
-            case "binance":
-                return 0.2; // Lower risk
-            case "coinbase":
-                return 0.2; // Lower risk
-            case "kraken":
-                return 0.3; // Moderate risk
-            case "okx":
-                return 0.4; // Moderate-high risk
-            default:
-                return 0.6; // Higher risk for less established exchanges
-        }
-    }
-
-    /**
-     * Calculates the market depth score based on order book data.
-     * 
-     * @param ticker The ticker data containing order book information
-     * @param isBuy Whether we're calculating for the buy side
-     * @return Depth score (0-1, where higher is better)
-     */
-    private double calculateDepthScore(Ticker ticker, boolean isBuy) {
-        // Simple implementation based on bid/ask amounts
-        if (ticker == null) {
-            return 0.5; // Neutral if no data
+        if (totalFee <= 0.0005) { // 0.05% or lower fees
+            return 1.0; // Very low fee impact
         }
         
-        double relevantDepth = isBuy ? ticker.getBidAmount() : ticker.getAskAmount();
-        
-        // Normalize depth against a threshold (e.g., 50 BTC worth of depth is good)
-        double targetDepth = 50.0;
-        return Math.min(1.0, relevantDepth / targetDepth);
+        // Linear scale between 0.05% and 1%
+        return 1.0 - ((totalFee - 0.0005) / 0.0095 * 0.8);
     }
     
     /**
-     * Calculates volatility based on high/low prices.
-     * 
-     * @param ticker The ticker data
-     * @return Volatility as a decimal (e.g., 0.02 for 2%)
+     * Determines the risk level based on the overall risk score
      */
-    private double calculateVolatility(Ticker ticker) {
-        if (ticker == null || ticker.getLastPrice() <= 0) {
-            return 0.02; // Default moderate volatility
+    private String determineRiskLevel(double overallScore) {
+        if (overallScore < RiskScoreConstants.HIGH_RISK_THRESHOLD) {
+            return "HIGH";
+        } else if (overallScore < RiskScoreConstants.MODERATE_RISK_THRESHOLD) {
+            return "MEDIUM";
+        } else {
+            return "LOW";
         }
-        
-        double highPrice = ticker.getHighPrice();
-        double lowPrice = ticker.getLowPrice();
-        
-        // If high/low data isn't available, use a different method
-        if (highPrice <= 0 || lowPrice <= 0) {
-            // Use bid/ask spread as a proxy for volatility
-            double spread = (ticker.getAskPrice() - ticker.getBidPrice()) / ticker.getLastPrice();
-            return Math.max(0.005, Math.min(0.05, spread * 5)); // Scale spread to volatility estimate
-        }
-        
-        // Calculate price range
-        return (highPrice - lowPrice) / ticker.getLastPrice();
-    }
-    
-    /**
-     * Calculates spread risk between buy and sell exchanges.
-     * 
-     * @param buyTicker Buy exchange ticker
-     * @param sellTicker Sell exchange ticker
-     * @return Spread risk score (0-1, where higher is better)
-     */
-    private double calculateSpreadRisk(Ticker buyTicker, Ticker sellTicker) {
-        if (buyTicker == null || sellTicker == null) {
-            return 0.5; // Neutral if missing data
-        }
-        
-        // Calculate normalized spreads on both exchanges
-        double buySpread = (buyTicker.getAskPrice() - buyTicker.getBidPrice()) / buyTicker.getLastPrice();
-        double sellSpread = (sellTicker.getAskPrice() - sellTicker.getBidPrice()) / sellTicker.getLastPrice();
-        
-        // Average the spread risks (lower is worse)
-        double avgSpread = (buySpread + sellSpread) / 2.0;
-        
-        // Convert to a score (higher is better)
-        return Math.max(0, 1.0 - (avgSpread * 10)); // Scale up for sensitivity
     }
 }

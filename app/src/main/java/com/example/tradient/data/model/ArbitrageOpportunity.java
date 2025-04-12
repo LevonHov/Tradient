@@ -2,6 +2,8 @@ package com.example.tradient.data.model;
 
 import android.os.Parcel;
 import android.os.Parcelable;
+import android.util.Log;
+
 
 import java.util.Arrays;
 import java.util.Date;
@@ -11,7 +13,6 @@ public class ArbitrageOpportunity implements Parcelable {
     private String exchangeBuy;
     private String exchangeSell;
     private double potentialProfit;
-    private RiskAssessment riskAssessment;
 
     // Additional fields to store more detailed information
     private String normalizedSymbol;
@@ -21,19 +22,19 @@ public class ArbitrageOpportunity implements Parcelable {
     private double sellPrice;
     private double profitPercent;
     private double successfulArbitragePercent; // New property for successful arbitrage percentage
-    
+
     // Fee-related fields
     private double buyFeePercentage;
     private double sellFeePercentage;
     private boolean isBuyMaker;  // Whether buy order is expected to be a maker order
     private boolean isSellMaker; // Whether sell order is expected to be a maker order
-    
+
     // Slippage-related fields
     private double buySlippage;  // Expected slippage for the buy side
     private double sellSlippage; // Expected slippage for the sell side
     private Ticker buyTicker;    // Ticker data for the buy side
     private Ticker sellTicker;   // Ticker data for the sell side
-    
+
     // Advanced metrics for better decision making
     private double priceDifferencePercentage;
     private double netProfitPercentage;
@@ -55,18 +56,22 @@ public class ArbitrageOpportunity implements Parcelable {
     private double sellExchangeLiquidity;
     private boolean isTimeSensitive;
 
+    // Add missing fields
+    private double volume;
+    private double orderBookDepth;
+    private double priceVolatility;
+    private double totalSlippagePercentage;
+
     public ArbitrageOpportunity() {
         this.timestamp = new Date();
         this.executed = false;
     }
 
-    public ArbitrageOpportunity(RiskAssessment riskAssessment, double potentialProfit, String exchangeSell, String exchangeBuy, TradingPair pair) {
-        this.riskAssessment = riskAssessment;
+    public ArbitrageOpportunity(double potentialProfit, String exchangeSell, String exchangeBuy, TradingPair pair) {
         this.potentialProfit = potentialProfit;
         this.exchangeSell = exchangeSell;
         this.exchangeBuy = exchangeBuy;
         this.pair = pair;
-        this.successfulArbitragePercent = computeMedianRisk(riskAssessment); // Compute median risk value
         this.timestamp = new Date();
         this.executed = false;
     }
@@ -75,13 +80,13 @@ public class ArbitrageOpportunity implements Parcelable {
      * New constructor for direct exchange-to-exchange comparison with more detailed data
      *
      * @param normalizedSymbol The normalized symbol used for comparison
-     * @param symbolBuy The symbol on the buy exchange
-     * @param symbolSell The symbol on the sell exchange
-     * @param exchangeBuy The name of the exchange to buy on
-     * @param exchangeSell The name of the exchange to sell on
-     * @param buyPrice The price to buy at
-     * @param sellPrice The price to sell at
-     * @param profitPercent The percentage profit of this opportunity
+     * @param symbolBuy        The symbol on the buy exchange
+     * @param symbolSell       The symbol on the sell exchange
+     * @param exchangeBuy      The name of the exchange to buy on
+     * @param exchangeSell     The name of the exchange to sell on
+     * @param buyPrice         The price to buy at
+     * @param sellPrice        The price to sell at
+     * @param profitPercent    The percentage profit of this opportunity
      */
     public ArbitrageOpportunity(
             String normalizedSymbol,
@@ -110,25 +115,25 @@ public class ArbitrageOpportunity implements Parcelable {
     /**
      * Comprehensive constructor for arbitrage opportunities with fee and order type details.
      *
-     * @param exchangeBuy      The exchange to buy from
-     * @param exchangeSell     The exchange to sell on
-     * @param tradingPair      The trading pair symbol
-     * @param amount           The amount to trade
-     * @param buyPrice         The price to buy at
-     * @param sellPrice        The price to sell at
-     * @param profit           The raw profit amount
-     * @param profitPercent    The profit as a percentage
-     * @param successRate      The calculated success rate (0-100)
-     * @param buyFeePercentage The buy fee as a percentage
+     * @param exchangeBuy       The exchange to buy from
+     * @param exchangeSell      The exchange to sell on
+     * @param tradingPair       The trading pair symbol
+     * @param amount            The amount to trade
+     * @param buyPrice          The price to buy at
+     * @param sellPrice         The price to sell at
+     * @param profit            The raw profit amount
+     * @param profitPercent     The profit as a percentage
+     * @param successRate       The calculated success rate (0-100)
+     * @param buyFeePercentage  The buy fee as a percentage
      * @param sellFeePercentage The sell fee as a percentage
-     * @param isBuyMaker       Whether the buy order is a maker order
-     * @param isSellMaker      Whether the sell order is a maker order
-     * @param priceDiffPercent The price difference percentage
-     * @param netProfitPercent The net profit percentage after fees
-     * @param riskScore        The risk score
-     * @param liquidity        The liquidity assessment
-     * @param volatility       The volatility assessment
-     * @param isViable         Whether the opportunity is considered viable
+     * @param isBuyMaker        Whether the buy order is a maker order
+     * @param isSellMaker       Whether the sell order is a maker order
+     * @param priceDiffPercent  The price difference percentage
+     * @param netProfitPercent  The net profit percentage after fees
+     * @param riskScore         The risk score
+     * @param liquidity         The liquidity assessment
+     * @param volatility        The volatility assessment
+     * @param isViable          Whether the opportunity is considered viable
      */
     public ArbitrageOpportunity(
             String exchangeBuy,
@@ -150,7 +155,7 @@ public class ArbitrageOpportunity implements Parcelable {
             double liquidity,
             double volatility,
             boolean isViable) {
-        
+
         this.normalizedSymbol = tradingPair;
         this.symbolBuy = tradingPair;
         this.symbolSell = tradingPair;
@@ -162,13 +167,13 @@ public class ArbitrageOpportunity implements Parcelable {
         this.potentialProfit = profit;
         this.pair = new TradingPair(tradingPair);
         this.successfulArbitragePercent = successRate;
-        
+
         // Set fee-related properties
         this.buyFeePercentage = buyFeePercentage;
         this.sellFeePercentage = sellFeePercentage;
         this.isBuyMaker = isBuyMaker;
         this.isSellMaker = isSellMaker;
-        
+
         // Set advanced metrics
         this.priceDifferencePercentage = priceDiffPercent;
         this.netProfitPercentage = netProfitPercent;
@@ -196,9 +201,6 @@ public class ArbitrageOpportunity implements Parcelable {
         return potentialProfit;
     }
 
-    public RiskAssessment getRiskAssessment() {
-        return riskAssessment;
-    }
 
     public void setPair(TradingPair pair) {
         this.pair = pair;
@@ -220,12 +222,7 @@ public class ArbitrageOpportunity implements Parcelable {
      * Updated setter to compute the successfulArbitragePercent property based on the
      * median value of all risk properties in the RiskAssessment.
      */
-    public void setRiskAssessment(RiskAssessment riskAssessment) {
-        this.riskAssessment = riskAssessment;
-        if (riskAssessment != null) {
-            this.successfulArbitragePercent = computeMedianRisk(riskAssessment);
-        }
-    }
+
 
     public String getNormalizedSymbol() {
         return normalizedSymbol;
@@ -272,88 +269,88 @@ public class ArbitrageOpportunity implements Parcelable {
 
     /**
      * Get the buy fee percentage.
-     * 
+     *
      * @return The buy fee percentage
      */
     public double getBuyFeePercentage() {
         return buyFeePercentage;
     }
-    
+
     /**
      * Get the sell fee percentage.
-     * 
+     *
      * @return The sell fee percentage
      */
     public double getSellFeePercentage() {
         return sellFeePercentage;
     }
-    
+
     /**
      * Check if the buy order is expected to be a maker order.
-     * 
+     *
      * @return True if the buy order is a maker order, false for taker
      */
     public boolean isBuyMaker() {
         return isBuyMaker;
     }
-    
+
     /**
      * Check if the sell order is expected to be a maker order.
-     * 
+     *
      * @return True if the sell order is a maker order, false for taker
      */
     public boolean isSellMaker() {
         return isSellMaker;
     }
-    
+
     /**
      * Get the price difference percentage between buy and sell prices.
-     * 
+     *
      * @return The price difference as a percentage
      */
     public double getPriceDifferencePercentage() {
         return priceDifferencePercentage;
     }
-    
+
     /**
      * Get the net profit percentage after accounting for all fees.
-     * 
+     *
      * @return The net profit percentage
      */
     public double getNetProfitPercentage() {
         return netProfitPercentage;
     }
-    
+
     /**
      * Get the calculated risk score.
-     * 
+     *
      * @return The risk score
      */
     public double getRiskScore() {
         return riskScore;
     }
-    
+
     /**
      * Get the liquidity assessment.
-     * 
+     *
      * @return The liquidity score
      */
     public double getLiquidity() {
         return liquidity;
     }
-    
+
     /**
      * Get the volatility assessment.
-     * 
+     *
      * @return The volatility score
      */
     public double getVolatility() {
         return volatility;
     }
-    
+
     /**
      * Check if the opportunity is considered viable.
-     * 
+     *
      * @return True if viable, false otherwise
      */
     public boolean isViable() {
@@ -364,58 +361,28 @@ public class ArbitrageOpportunity implements Parcelable {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(normalizedSymbol).append(": Buy on ").append(exchangeBuy)
-          .append(" (").append(isBuyMaker ? "maker" : "taker").append(" fee: ")
-          .append(String.format("%.4f%%", buyFeePercentage * 100)).append(") at ")
-          .append(buyPrice).append(", Sell on ").append(exchangeSell)
-          .append(" (").append(isSellMaker ? "maker" : "taker").append(" fee: ")
-          .append(String.format("%.4f%%", sellFeePercentage * 100)).append(") at ")
-          .append(sellPrice).append(System.lineSeparator())
-          .append("Profit: ").append(String.format("%.2f%%", profitPercent))
-          .append(", Net: ").append(String.format("%.2f%%", netProfitPercentage))
-          .append(", Success Rate: ").append(String.format("%.0f%%", successfulArbitragePercent))
-          .append(", Viable: ").append(isViable);
-        
+                .append(" (").append(isBuyMaker ? "maker" : "taker").append(" fee: ")
+                .append(String.format("%.4f%%", buyFeePercentage * 100)).append(") at ")
+                .append(buyPrice).append(", Sell on ").append(exchangeSell)
+                .append(" (").append(isSellMaker ? "maker" : "taker").append(" fee: ")
+                .append(String.format("%.4f%%", sellFeePercentage * 100)).append(") at ")
+                .append(sellPrice).append(System.lineSeparator())
+                .append("Profit: ").append(String.format("%.2f%%", profitPercent))
+                .append(", Net: ").append(String.format("%.2f%%", netProfitPercentage))
+                .append(", Success Rate: ").append(String.format("%.0f%%", successfulArbitragePercent))
+                .append(", Viable: ").append(isViable);
+
         return sb.toString();
     }
 
-    /**
-     * Helper method to compute the median risk value from a RiskAssessment's properties.
-     *
-     * @param riskAssessment An instance of RiskAssessment.
-     * @return The median value.
-     */
-    private double computeMedianRisk(RiskAssessment riskAssessment) {
-        double[] risks = new double[] {
-                riskAssessment.getLiquidityScore(),
-                riskAssessment.getVolatilityScore(),
-                riskAssessment.getFeeImpact(),
-                riskAssessment.getMarketDepthScore(),
-                riskAssessment.getExecutionSpeedRisk(),
-                riskAssessment.getSlippageRisk(),
-                riskAssessment.getMarketRegimeScore(),
-                riskAssessment.getSentimentScore(),
-                riskAssessment.getAnomalyScore(),
-                riskAssessment.getCorrelationScore()
-        };
-        Arrays.sort(risks);
-        int n = risks.length;
-        if (n % 2 == 1) {
-            return risks[n / 2];
-        } else {
-            return ((risks[(n / 2) - 1] + risks[n / 2]) / 2.0) * 100;
-        }
-    }
 
-    /**
-     * Gets the buy symbol for this arbitrage opportunity
-     * @return The buy symbol
-     */
     public String getBuySymbol() {
         return symbolBuy;
     }
-    
+
     /**
      * Gets the sell symbol for this arbitrage opportunity
+     *
      * @return The sell symbol
      */
     public String getSellSymbol() {
@@ -424,62 +391,70 @@ public class ArbitrageOpportunity implements Parcelable {
 
     /**
      * Gets the buy slippage for this arbitrage opportunity
+     *
      * @return The buy slippage as a decimal (e.g., 0.001 for 0.1%)
      */
     public double getBuySlippage() {
         return buySlippage;
     }
-    
+
     /**
      * Sets the buy slippage for this arbitrage opportunity
+     *
      * @param buySlippage The buy slippage as a decimal (e.g., 0.001 for 0.1%)
      */
     public void setBuySlippage(double buySlippage) {
         this.buySlippage = buySlippage;
     }
-    
+
     /**
      * Gets the sell slippage for this arbitrage opportunity
+     *
      * @return The sell slippage as a decimal (e.g., 0.001 for 0.1%)
      */
     public double getSellSlippage() {
         return sellSlippage;
     }
-    
+
     /**
      * Sets the sell slippage for this arbitrage opportunity
+     *
      * @param sellSlippage The sell slippage as a decimal (e.g., 0.001 for 0.1%)
      */
     public void setSellSlippage(double sellSlippage) {
         this.sellSlippage = sellSlippage;
     }
-    
+
     /**
      * Gets the ticker data for the buy side of this arbitrage opportunity
+     *
      * @return The buy ticker
      */
     public Ticker getBuyTicker() {
         return buyTicker;
     }
-    
+
     /**
      * Sets the ticker data for the buy side of this arbitrage opportunity
+     *
      * @param buyTicker The buy ticker
      */
     public void setBuyTicker(Ticker buyTicker) {
         this.buyTicker = buyTicker;
     }
-    
+
     /**
      * Gets the ticker data for the sell side of this arbitrage opportunity
+     *
      * @return The sell ticker
      */
     public Ticker getSellTicker() {
         return sellTicker;
     }
-    
+
     /**
      * Sets the ticker data for the sell side of this arbitrage opportunity
+     *
      * @param sellTicker The sell ticker
      */
     public void setSellTicker(Ticker sellTicker) {
@@ -520,6 +495,7 @@ public class ArbitrageOpportunity implements Parcelable {
 
     /**
      * Generate a unique key for this opportunity based on the symbol and exchanges
+     *
      * @return A string key that uniquely identifies this opportunity
      */
     public String getOpportunityKey() {
@@ -534,22 +510,25 @@ public class ArbitrageOpportunity implements Parcelable {
 
     /**
      * Alias for getNormalizedSymbol() to maintain compatibility with refactored code
+     *
      * @return The normalized symbol
      */
     public String getSymbol() {
         return getNormalizedSymbol();
     }
-    
+
     /**
      * Alias for getExchangeBuy() to maintain compatibility with refactored code
+     *
      * @return The buy exchange name
      */
     public String getBuyExchangeName() {
         return getExchangeBuy();
     }
-    
+
     /**
      * Alias for getExchangeSell() to maintain compatibility with refactored code
+     *
      * @return The sell exchange name
      */
     public String getSellExchangeName() {
@@ -559,21 +538,22 @@ public class ArbitrageOpportunity implements Parcelable {
     public void setBuyFeePercentage(double buyFeePercentage) {
         this.buyFeePercentage = buyFeePercentage;
     }
-    
+
     public void setSellFeePercentage(double sellFeePercentage) {
         this.sellFeePercentage = sellFeePercentage;
     }
-    
+
     public void setNetProfitPercentage(double netProfitPercentage) {
         this.netProfitPercentage = netProfitPercentage;
     }
-    
+
     public void setViable(boolean viable) {
         this.isViable = viable;
     }
 
     /**
      * Get the estimated time for this arbitrage operation in minutes
+     *
      * @return Estimated time in minutes
      */
     public double getEstimatedTimeMinutes() {
@@ -582,6 +562,7 @@ public class ArbitrageOpportunity implements Parcelable {
 
     /**
      * Set the estimated time for this arbitrage operation
+     *
      * @param estimatedTimeMinutes Time in minutes
      */
     public void setEstimatedTimeMinutes(double estimatedTimeMinutes) {
@@ -590,6 +571,7 @@ public class ArbitrageOpportunity implements Parcelable {
 
     /**
      * Get the ROI efficiency (profit per hour)
+     *
      * @return ROI efficiency as percentage per hour
      */
     public double getRoiEfficiency() {
@@ -598,6 +580,7 @@ public class ArbitrageOpportunity implements Parcelable {
 
     /**
      * Set the ROI efficiency
+     *
      * @param roiEfficiency ROI efficiency value
      */
     public void setRoiEfficiency(double roiEfficiency) {
@@ -606,6 +589,7 @@ public class ArbitrageOpportunity implements Parcelable {
 
     /**
      * Get liquidity factor for this opportunity (0-1)
+     *
      * @return Liquidity factor
      */
     public double getLiquidityFactor() {
@@ -614,6 +598,7 @@ public class ArbitrageOpportunity implements Parcelable {
 
     /**
      * Set liquidity factor
+     *
      * @param liquidityFactor Liquidity factor value
      */
     public void setLiquidityFactor(double liquidityFactor) {
@@ -622,6 +607,7 @@ public class ArbitrageOpportunity implements Parcelable {
 
     /**
      * Get buy exchange liquidity depth
+     *
      * @return Buy exchange liquidity
      */
     public double getBuyExchangeLiquidity() {
@@ -630,6 +616,7 @@ public class ArbitrageOpportunity implements Parcelable {
 
     /**
      * Set buy exchange liquidity depth
+     *
      * @param buyExchangeLiquidity Liquidity value
      */
     public void setBuyExchangeLiquidity(double buyExchangeLiquidity) {
@@ -638,6 +625,7 @@ public class ArbitrageOpportunity implements Parcelable {
 
     /**
      * Get sell exchange liquidity depth
+     *
      * @return Sell exchange liquidity
      */
     public double getSellExchangeLiquidity() {
@@ -646,6 +634,7 @@ public class ArbitrageOpportunity implements Parcelable {
 
     /**
      * Set sell exchange liquidity depth
+     *
      * @param sellExchangeLiquidity Liquidity value
      */
     public void setSellExchangeLiquidity(double sellExchangeLiquidity) {
@@ -654,6 +643,7 @@ public class ArbitrageOpportunity implements Parcelable {
 
     /**
      * Check if this opportunity is time-sensitive
+     *
      * @return True if opportunity is time-sensitive
      */
     public boolean isTimeSensitive() {
@@ -662,6 +652,7 @@ public class ArbitrageOpportunity implements Parcelable {
 
     /**
      * Set whether this opportunity is time-sensitive
+     *
      * @param timeSensitive Time sensitivity flag
      */
     public void setTimeSensitive(boolean timeSensitive) {
@@ -670,6 +661,7 @@ public class ArbitrageOpportunity implements Parcelable {
 
     /**
      * Get formatted time string for display
+     *
      * @return Formatted time string
      */
     public String getFormattedTime() {
@@ -683,6 +675,7 @@ public class ArbitrageOpportunity implements Parcelable {
 
     /**
      * Get formatted ROI efficiency string for display
+     *
      * @return Formatted ROI efficiency string
      */
     public String getFormattedROIEfficiency() {
@@ -695,7 +688,6 @@ public class ArbitrageOpportunity implements Parcelable {
         exchangeBuy = in.readString();
         exchangeSell = in.readString();
         potentialProfit = in.readDouble();
-        riskAssessment = in.readParcelable(RiskAssessment.class.getClassLoader());
         normalizedSymbol = in.readString();
         symbolBuy = in.readString();
         symbolSell = in.readString();
@@ -728,6 +720,10 @@ public class ArbitrageOpportunity implements Parcelable {
         buyExchangeLiquidity = in.readDouble();
         sellExchangeLiquidity = in.readDouble();
         isTimeSensitive = in.readByte() != 0;
+        volume = in.readDouble();
+        orderBookDepth = in.readDouble();
+        priceVolatility = in.readDouble();
+        totalSlippagePercentage = in.readDouble();
     }
 
     @Override
@@ -736,7 +732,6 @@ public class ArbitrageOpportunity implements Parcelable {
         dest.writeString(exchangeBuy);
         dest.writeString(exchangeSell);
         dest.writeDouble(potentialProfit);
-        dest.writeParcelable(riskAssessment, flags);
         dest.writeString(normalizedSymbol);
         dest.writeString(symbolBuy);
         dest.writeString(symbolSell);
@@ -768,6 +763,10 @@ public class ArbitrageOpportunity implements Parcelable {
         dest.writeDouble(buyExchangeLiquidity);
         dest.writeDouble(sellExchangeLiquidity);
         dest.writeByte((byte) (isTimeSensitive ? 1 : 0));
+        dest.writeDouble(volume);
+        dest.writeDouble(orderBookDepth);
+        dest.writeDouble(priceVolatility);
+        dest.writeDouble(totalSlippagePercentage);
     }
 
     @Override
@@ -793,25 +792,80 @@ public class ArbitrageOpportunity implements Parcelable {
     public double getPercentageProfit() {
         return netProfitPercentage;
     }
-    
+
     /**
      * Set the net profit percentage
      */
     public void setPercentageProfit(double percentageProfit) {
         this.netProfitPercentage = percentageProfit;
     }
-    
+
     /**
      * Get the buy fee as a decimal percentage (e.g., 0.001 for 0.1%)
      */
     public double getBuyFee() {
         return buyFeePercentage;
     }
-    
+
     /**
      * Get the sell fee as a decimal percentage (e.g., 0.001 for 0.1%)
      */
     public double getSellFee() {
         return sellFeePercentage;
     }
+
+    // Add getters for the missing fields
+    public double getVolume() {
+        if (buyTicker != null && sellTicker != null) {
+            return Math.min(buyTicker.getVolume(), sellTicker.getVolume());
+        }
+        return volume;
+    }
+
+    public double getOrderBookDepth() {
+        if (buyTicker != null && sellTicker != null) {
+            return Math.min(
+                    buyTicker.getBidAmount() + buyTicker.getAskAmount(),
+                    sellTicker.getBidAmount() + sellTicker.getAskAmount()
+            );
+        }
+        return orderBookDepth;
+    }
+
+    public double getPriceVolatility() {
+        if (buyTicker != null && sellTicker != null) {
+            double buyVolatility = (buyTicker.getHighPrice() - buyTicker.getLowPrice()) / buyTicker.getLastPrice();
+            double sellVolatility = (sellTicker.getHighPrice() - sellTicker.getLowPrice()) / sellTicker.getLastPrice();
+            return Math.max(buyVolatility, sellVolatility);
+        }
+        return priceVolatility;
+    }
+
+    public double getTotalSlippagePercentage() {
+        return buySlippage + sellSlippage;
+    }
+
+    // Add setters for the new fields
+    public void setVolume(double volume) {
+        this.volume = volume;
+    }
+
+    public void setOrderBookDepth(double orderBookDepth) {
+        this.orderBookDepth = orderBookDepth;
+    }
+
+    public void setPriceVolatility(double priceVolatility) {
+        this.priceVolatility = priceVolatility;
+    }
+
+    public void setTotalSlippagePercentage(double totalSlippagePercentage) {
+        this.totalSlippagePercentage = totalSlippagePercentage;
+    }
+
+    /**
+     * Calculates and updates the risk assessment for this opportunity.
+     * This method should be called whenever the opportunity data changes.
+     */
+
+
 }

@@ -3,6 +3,7 @@ package com.example.tradient.util;
 import android.util.Log;
 import android.util.Pair;
 
+import com.example.tradient.data.model.ArbitrageOpportunity;
 import com.example.tradient.data.model.OrderBook;
 import com.example.tradient.data.model.OrderBookEntry;
 import com.example.tradient.data.model.Ticker;
@@ -1175,5 +1176,123 @@ public class TimeEstimationUtil {
      */
     private static double getVolatilityRiskPremium(MarketVolatility volatility) {
         return VOLATILITY_RISK_PREMIUMS.getOrDefault(volatility, 15.0);
+    }
+    
+    /**
+     * Get a formatted execution time estimate for an arbitrage opportunity
+     * 
+     * @param opportunity The arbitrage opportunity
+     * @return A formatted string with the estimated execution time
+     */
+    public static String getExecutionTimeEstimate(ArbitrageOpportunity opportunity) {
+        if (opportunity == null) {
+            return "Unknown";
+        }
+        
+        try {
+            // Get the execution time in minutes
+            double timeMinutes = getExecutionTimeInMinutes(opportunity);
+            
+            // Format the time string
+            return formatTimeString(timeMinutes);
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting execution time estimate: " + e.getMessage());
+            return "Unknown";
+        }
+    }
+    
+    /**
+     * Get the execution time in minutes for an arbitrage opportunity
+     * 
+     * @param opportunity The arbitrage opportunity
+     * @return The estimated execution time in minutes
+     */
+    public static double getExecutionTimeInMinutes(ArbitrageOpportunity opportunity) {
+        if (opportunity == null) {
+            return 5.0; // Default to 5 minutes if opportunity is null
+        }
+        
+        try {
+            // Get exchange names
+            String buyExchange = opportunity.getExchangeBuy();
+            String sellExchange = opportunity.getExchangeSell();
+            
+            // Get tickers
+            Ticker buyTicker = opportunity.getBuyTicker();
+            Ticker sellTicker = opportunity.getSellTicker();
+            
+            // Get order books (if available)
+            OrderBook buyOrderBook = null; // opportunity.getBuyOrderBook() doesn't exist
+            OrderBook sellOrderBook = null; // opportunity.getSellOrderBook() doesn't exist
+            
+            // Get symbol
+            String symbol = opportunity.getNormalizedSymbol();
+            
+            // Estimate trade amount (use a reasonable default)
+            double tradeAmount = 1.0; // Default to 1.0 of the base asset
+            
+            // Estimate volatility
+            MarketVolatility volatility = estimateVolatilityFromTickers(buyTicker, sellTicker);
+            
+            // Estimate arbitrage time
+            Pair<Double, Double> timeEstimate = estimateArbitrageTimeMinutes(
+                buyExchange, 
+                sellExchange,
+                buyTicker,
+                sellTicker,
+                buyOrderBook,
+                sellOrderBook,
+                tradeAmount,
+                volatility,
+                symbol
+            );
+            
+            // Return the estimated time in minutes
+            return timeEstimate.first;
+        } catch (Exception e) {
+            Log.e(TAG, "Error calculating execution time: " + e.getMessage());
+            return 5.0; // Default to 5 minutes on error
+        }
+    }
+    
+    /**
+     * Estimate volatility from ticker data
+     * 
+     * @param buyTicker The buy exchange ticker
+     * @param sellTicker The sell exchange ticker
+     * @return The estimated market volatility
+     */
+    private static MarketVolatility estimateVolatilityFromTickers(Ticker buyTicker, Ticker sellTicker) {
+        if (buyTicker == null || sellTicker == null) {
+            return MarketVolatility.MEDIUM; // Default to medium volatility
+        }
+        
+        // Calculate price ranges as percentages
+        double buyRange = 0;
+        double sellRange = 0;
+        
+        if (buyTicker.getLastPrice() > 0 && buyTicker.getHighPrice() > 0 && buyTicker.getLowPrice() > 0) {
+            buyRange = (buyTicker.getHighPrice() - buyTicker.getLowPrice()) / buyTicker.getLastPrice();
+        }
+        
+        if (sellTicker.getLastPrice() > 0 && sellTicker.getHighPrice() > 0 && sellTicker.getLowPrice() > 0) {
+            sellRange = (sellTicker.getHighPrice() - sellTicker.getLowPrice()) / sellTicker.getLastPrice();
+        }
+        
+        // Use the average volatility from both exchanges
+        double avgVolatility = (buyRange + sellRange) / 2.0;
+        
+        // Map to volatility levels
+        if (avgVolatility < 0.01) {
+            return MarketVolatility.VERY_LOW;
+        } else if (avgVolatility < 0.02) {
+            return MarketVolatility.LOW;
+        } else if (avgVolatility < 0.04) {
+            return MarketVolatility.MEDIUM;
+        } else if (avgVolatility < 0.07) {
+            return MarketVolatility.HIGH;
+        } else {
+            return MarketVolatility.VERY_HIGH;
+        }
     }
 } 

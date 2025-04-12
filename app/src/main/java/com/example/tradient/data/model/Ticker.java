@@ -5,6 +5,9 @@ import android.os.Parcelable;
 
 import java.util.Date;
 
+/**
+ * Represents ticker data from an exchange
+ */
 public class Ticker implements Parcelable {
     private double bidPrice;
     private double askPrice;
@@ -18,16 +21,34 @@ public class Ticker implements Parcelable {
     private double askAmount = 0.0;
     private double highPrice = 0.0;
     private double lowPrice = 0.0;
+    
+    // Exchange information
+    private String exchangeName = "";
+    private String symbol = "";
 
+    public Ticker() {
+    }
+
+    public Ticker(String symbol, double lastPrice, double bidPrice, double askPrice, double volume, long timestamp, String exchangeName) {
+        this.symbol = symbol;
+        this.lastPrice = lastPrice;
+        this.bidPrice = bidPrice;
+        this.askPrice = askPrice;
+        this.volume = volume;
+        this.timestamp = new Date(timestamp);
+        this.exchangeName = exchangeName;
+    }
+
+    // Constructor for backward compatibility with existing code
     public Ticker(double bidPrice, double askPrice, double lastPrice, double volume, Date timestamp) {
         this.bidPrice = bidPrice;
         this.askPrice = askPrice;
         this.lastPrice = lastPrice;
         this.volume = volume;
         this.timestamp = timestamp;
+        this.exchangeName = ""; // Default empty exchange name
+        this.symbol = ""; // Default empty symbol
     }
-
-    public Ticker(){}
 
     protected Ticker(Parcel in) {
         bidPrice = in.readDouble();
@@ -41,6 +62,8 @@ public class Ticker implements Parcelable {
         askAmount = in.readDouble();
         highPrice = in.readDouble();
         lowPrice = in.readDouble();
+        exchangeName = in.readString();
+        symbol = in.readString();
     }
 
     @Override
@@ -55,6 +78,8 @@ public class Ticker implements Parcelable {
         dest.writeDouble(askAmount);
         dest.writeDouble(highPrice);
         dest.writeDouble(lowPrice);
+        dest.writeString(exchangeName);
+        dest.writeString(symbol);
     }
 
     @Override
@@ -194,5 +219,54 @@ public class Ticker implements Parcelable {
      */
     public void setOpenPrice(double openPrice) {
         this.openPrice = openPrice;
+    }
+
+    /**
+     * Gets the exchange name associated with this ticker
+     * @return Exchange name
+     */
+    public String getExchangeName() {
+        return exchangeName;
+    }
+    
+    /**
+     * Sets the exchange name associated with this ticker
+     * @param exchangeName The exchange name
+     */
+    public void setExchangeName(String exchangeName) {
+        this.exchangeName = exchangeName;
+    }
+    
+    /**
+     * Gets the trading symbol for this ticker
+     * @return Trading symbol
+     */
+    public String getSymbol() {
+        return symbol;
+    }
+    
+    /**
+     * Sets the trading symbol for this ticker
+     * @param symbol Trading symbol
+     */
+    public void setSymbol(String symbol) {
+        this.symbol = symbol;
+    }
+
+    /**
+     * Calculate the spread between bid and ask prices
+     * @return The spread as a percentage of the bid price
+     */
+    public double getSpreadPercentage() {
+        if (bidPrice <= 0) return 0;
+        return (askPrice - bidPrice) / bidPrice * 100.0;
+    }
+    
+    /**
+     * Check if this ticker has valid price data
+     * @return true if all price fields are valid
+     */
+    public boolean hasValidPrices() {
+        return lastPrice > 0 && bidPrice > 0 && askPrice > 0;
     }
 }

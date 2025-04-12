@@ -187,6 +187,21 @@
         </com.google.android.material.chip.ChipGroup>
     </HorizontalScrollView>
 
+    <!-- Risk level summary text -->
+    <TextView
+        android:id="@+id/risk_summary_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:textSize="14sp"
+        android:textColor="@color/secondary_text"
+        android:visibility="gone"
+        app:layout_constraintTop_toBottomOf="@id/filterChipsScrollView"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        tools:text="Risk Summary: 5 Low, 10 Medium, 3 High"
+        tools:visibility="visible" />
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/opportunities_recycler_view"
         android:layout_width="0dp"
@@ -197,7 +212,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/filterChipsScrollView"
+        app:layout_constraintTop_toBottomOf="@id/risk_summary_text"
         tools:listitem="@layout/item_opportunity" />
 
     <TextView
@@ -211,9 +226,387 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/filterChipsScrollView"
+        app:layout_constraintTop_toBottomOf="@id/risk_summary_text"
         app:layout_constraintVertical_bias="0.3"
         tools:text="@string/scanning_for_opportunities"
         tools:visibility="visible" />
+
+    <!-- Filter FAB -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/advancedFilterFab"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        android:contentDescription="Advanced filters"
+        android:src="@drawable/ic_filter"
+        app:backgroundTint="@color/primary"
+        app:fabSize="normal"
+        app:tint="@color/white"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Filter Panel -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/filterPanel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        android:visibility="gone"
+        app:cardBackgroundColor="@color/card_background"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="8dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Advanced Filters"
+                android:textColor="@color/white"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="16dp" />
+
+            <!-- Profit Range Filter -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Profit Range"
+                android:textColor="@color/secondary_text"
+                android:textSize="14sp"
+                android:layout_marginBottom="8dp" />
+                
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="4dp">
+                
+                <TextView
+                    android:id="@+id/profitMinValue"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="0%"
+                    android:textColor="@color/success_green"
+                    android:textSize="14sp"
+                    android:fontFamily="monospace" />
+                    
+                <com.google.android.material.slider.RangeSlider
+                    android:id="@+id/profitRangeSlider"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:valueFrom="0.0"
+                    android:valueTo="50.0"
+                    android:stepSize="0.5"
+                    app:trackColorActive="@color/primary"
+                    app:trackColorInactive="@color/neutral_gray" />
+                    
+                <TextView
+                    android:id="@+id/profitMaxValue"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="50%+"
+                    android:textColor="@color/error_red"
+                    android:textSize="14sp"
+                    android:fontFamily="monospace" />
+            </LinearLayout>
+
+            <!-- Exchange Filter -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Exchanges"
+                android:textColor="@color/secondary_text"
+                android:textSize="14sp"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="8dp" />
+                
+            <HorizontalScrollView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:scrollbars="none"
+                android:layout_marginBottom="16dp">
+                
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/exchangeChipGroup"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    app:singleLine="true">
+                    
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chip_exchange_all"
+                        style="@style/Widget.MaterialComponents.Chip.Filter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:checked="true"
+                        android:text="All Exchanges"
+                        android:textColor="@color/white"
+                        app:chipBackgroundColor="@color/primary"
+                        app:chipStrokeColor="@color/white"
+                        app:chipStrokeWidth="1dp" />
+                        
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chip_exchange_binance"
+                        style="@style/Widget.MaterialComponents.Chip.Filter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Binance"
+                        android:textColor="@color/white"
+                        app:chipBackgroundColor="#332F3365"
+                        app:chipStrokeColor="@color/white"
+                        app:chipStrokeWidth="1dp" />
+                        
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chip_exchange_okx"
+                        style="@style/Widget.MaterialComponents.Chip.Filter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="OKX"
+                        android:textColor="@color/white"
+                        app:chipBackgroundColor="#332F3365"
+                        app:chipStrokeColor="@color/white"
+                        app:chipStrokeWidth="1dp" />
+                        
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chip_exchange_bybit"
+                        style="@style/Widget.MaterialComponents.Chip.Filter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="ByBit"
+                        android:textColor="@color/white"
+                        app:chipBackgroundColor="#332F3365"
+                        app:chipStrokeColor="@color/white"
+                        app:chipStrokeWidth="1dp" />
+                        
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chip_exchange_kraken"
+                        style="@style/Widget.MaterialComponents.Chip.Filter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Kraken"
+                        android:textColor="@color/white"
+                        app:chipBackgroundColor="#332F3365"
+                        app:chipStrokeColor="@color/white"
+                        app:chipStrokeWidth="1dp" />
+                        
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chip_exchange_coinbase"
+                        style="@style/Widget.MaterialComponents.Chip.Filter"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Coinbase"
+                        android:textColor="@color/white"
+                        app:chipBackgroundColor="#332F3365"
+                        app:chipStrokeColor="@color/white"
+                        app:chipStrokeWidth="1dp" />
+                </com.google.android.material.chip.ChipGroup>
+            </HorizontalScrollView>
+
+            <!-- Risk Level Filter -->
+            <TextView
+                android:id="@+id/riskLevelLabel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="Risk Level"
+                android:textColor="@color/text_primary"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="16dp">
+
+                <!-- Risk Level Slider -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:id="@+id/riskLevelValue"
+                        android:layout_width="60dp"
+                        android:layout_height="wrap_content"
+                        android:text="Balanced"
+                        android:textColor="@color/text_primary"
+                        android:textSize="14sp"
+                        android:gravity="center" />
+
+                    <com.google.android.material.slider.Slider
+                        android:id="@+id/riskLevelSlider"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:valueFrom="1"
+                        android:valueTo="10"
+                        android:value="5"
+                        android:stepSize="1"
+                        app:thumbColor="@color/primary"
+                        app:trackColor="@color/neutral_gray"
+                        app:trackHeight="4dp"
+                        app:thumbRadius="12dp"
+                        app:haloRadius="16dp" />
+                </LinearLayout>
+
+                <!-- Slippage Info -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="8dp">
+                    
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Expected Slippage:"
+                        android:textColor="@color/secondary_text"
+                        android:textSize="12sp" />
+                        
+                    <TextView
+                        android:id="@+id/slippageValueText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:text="0.2% - 0.5%"
+                        android:textColor="@color/primary"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+                
+                <!-- Risk Score Distribution -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="4dp">
+                    
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Risk Score:"
+                        android:textColor="@color/secondary_text"
+                        android:textSize="12sp" />
+                        
+                    <TextView
+                        android:id="@+id/riskScoreValueText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:text="≥ 0.5 (Moderate)"
+                        android:textColor="@color/primary"
+                        android:textSize="12sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Execution Time Filter -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Maximum Execution Time"
+                android:textColor="@color/secondary_text"
+                android:textSize="14sp"
+                android:layout_marginBottom="8dp" />
+                
+            <Spinner
+                android:id="@+id/executionTimeSpinner"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:background="@color/input_field_background"
+                android:popupBackground="@color/card_background"
+                android:layout_marginBottom="16dp" />
+                
+            <!-- Volume/Liquidity Filter -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Minimum Volume/Liquidity"
+                android:textColor="@color/secondary_text"
+                android:textSize="14sp"
+                android:layout_marginBottom="8dp" />
+                
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="16dp">
+                
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Low"
+                    android:textColor="@color/secondary_text"
+                    android:textSize="12sp" />
+                    
+                <com.google.android.material.slider.Slider
+                    android:id="@+id/volumeSlider"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:valueFrom="1.0"
+                    android:valueTo="5.0"
+                    android:stepSize="1.0"
+                    android:value="1.0"
+                    app:trackColorActive="@color/electric_purple"
+                    app:trackColorInactive="@color/neutral_gray"
+                    app:thumbColor="@color/white" />
+                    
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="High"
+                    android:textColor="@color/secondary_text"
+                    android:textSize="12sp" />
+            </LinearLayout>
+            
+            <!-- Actions -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+                
+                <TextView
+                    android:id="@+id/matchingOpportunitiesText"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="0 opportunities match"
+                    android:textColor="@color/secondary_text"
+                    android:textSize="14sp" />
+                    
+                <Button
+                    android:id="@+id/resetFiltersButton"
+                    style="@style/Widget.MaterialComponents.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Reset"
+                    android:textColor="@color/electric_purple" />
+                    
+                <Button
+                    android:id="@+id/applyFiltersButton"
+                    style="@style/Widget.MaterialComponents.Button"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Apply"
+                    android:textAllCaps="false"
+                    app:backgroundTint="@color/primary" />
+            </LinearLayout>
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
 
 </androidx.constraintlayout.widget.ConstraintLayout> 

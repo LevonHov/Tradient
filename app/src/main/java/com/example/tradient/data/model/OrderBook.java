@@ -35,6 +35,8 @@ public class OrderBook {
     // Add a map to store metadata about the order book
     private Map<String, Object> metadata;
 
+    private double spreadPercentage;
+
     /**
      * Constructor to initialize the OrderBook.
      *
@@ -49,6 +51,7 @@ public class OrderBook {
         this.asks = asks;
         this.timestamp = timestamp;
         this.metadata = new HashMap<>();
+        calculateSpread();
     }
 
     /**
@@ -67,6 +70,7 @@ public class OrderBook {
         this.bids = new ArrayList<>();
         this.asks = new ArrayList<>();
         this.timestamp = System.currentTimeMillis();
+        this.metadata = new HashMap<>();
     }
 
     /**
@@ -184,6 +188,7 @@ public class OrderBook {
      */
     public void setBids(List<OrderBookEntry> bids) {
         this.bids = bids;
+        calculateSpread();
     }
 
     /**
@@ -193,6 +198,7 @@ public class OrderBook {
      */
     public void setAsks(List<OrderBookEntry> asks) {
         this.asks = asks;
+        calculateSpread();
     }
 
     /**
@@ -305,6 +311,140 @@ public class OrderBook {
             metadata = new HashMap<>();
         }
         return Collections.unmodifiableMap(metadata);
+    }
+
+    /**
+     * Calculate the spread percentage between the best bid and best ask
+     */
+    private void calculateSpread() {
+        if (bids.isEmpty() || asks.isEmpty()) {
+            spreadPercentage = 0;
+            return;
+        }
+        
+        double bestBid = bids.get(0).getPrice();
+        double bestAsk = asks.get(0).getPrice();
+        
+        if (bestBid <= 0 || bestAsk <= 0) {
+            spreadPercentage = 0;
+            return;
+        }
+        
+        spreadPercentage = (bestAsk - bestBid) / bestBid * 100;
+    }
+    
+    /**
+     * Calculate the market depth up to a certain price level
+     * @param priceLevel The price level as a percentage from the mid price
+     * @return The total volume available within the price level
+     */
+    public double getDepth(double priceLevel) {
+        if (bids.isEmpty() || asks.isEmpty()) {
+            return 0;
+        }
+        
+        double bestBid = bids.get(0).getPrice();
+        double bestAsk = asks.get(0).getPrice();
+        double midPrice = (bestBid + bestAsk) / 2;
+        
+        double lowerBound = midPrice * (1 - priceLevel / 100);
+        double upperBound = midPrice * (1 + priceLevel / 100);
+        
+        double totalVolume = 0;
+        
+        // Add bid side depth
+        for (OrderBookEntry bid : bids) {
+            if (bid.getPrice() >= lowerBound) {
+                totalVolume += bid.getQuantity();
+            } else {
+                break;
+            }
+        }
+        
+        // Add ask side depth
+        for (OrderBookEntry ask : asks) {
+            if (ask.getPrice() <= upperBound) {
+                totalVolume += ask.getQuantity();
+            } else {
+                break;
+            }
+        }
+        
+        return totalVolume;
+    }
+    
+    /**
+     * Calculate the expected slippage for a given trade size
+     * @param tradeSize The size of the trade in base currency
+     * @param isBuy Whether it's a buy or sell order
+     * @return The expected slippage percentage
+     */
+    public double calculateSlippage(double tradeSize, boolean isBuy) {
+        if (tradeSize <= 0 || bids.isEmpty() || asks.isEmpty()) {
+            return 0;
+        }
+        
+        // Use appropriate side of the order book
+        List<OrderBookEntry> orders = isBuy ? asks : bids;
+        double bestPrice = isBuy ? asks.get(0).getPrice() : bids.get(0).getPrice();
+        
+        // Calculate weighted average execution price
+        double remainingAmount = tradeSize;
+        double totalCost = 0;
+        double filledAmount = 0;
+        
+        for (OrderBookEntry order : orders) {
+            double available = order.getQuantity() * order.getPrice(); // Convert to USD equivalent
+            double price = order.getPrice();
+            
+            if (remainingAmount <= available) {
+                // This order completes our required amount
+                totalCost += remainingAmount * price;
+                filledAmount += remainingAmount;
+                remainingAmount = 0;
+                break;
+            } else {
+                // Take the entire order and continue
+                totalCost += available * price;
+                filledAmount += available;
+                remainingAmount -= available;
+            }
+        }
+        
+        // If we couldn't fill the entire order
+        if (remainingAmount > 0) {
+            // Real-world estimation: assume we get 20% worse price for remaining amount
+            double worstPrice = orders.get(orders.size() - 1).getPrice();
+            double estimatedPrice = worstPrice * (isBuy ? 1.20 : 0.80);
+            totalCost += remainingAmount * estimatedPrice;
+            filledAmount += remainingAmount;
+            
+            // Log insufficient liquidity
+            android.util.Log.w("OrderBook", String.format(
+                "Insufficient liquidity for %s order of size $%.2f. Missing liquidity: %.2f%%", 
+                isBuy ? "buy" : "sell", tradeSize, (remainingAmount / tradeSize) * 100));
+        }
+        
+        // Calculate weighted average execution price
+        double avgExecutionPrice = totalCost / filledAmount;
+        
+        // Calculate slippage percentage
+        double slippagePercent;
+        if (isBuy) {
+            // For buys: (avg price - best price) / best price * 100
+            slippagePercent = ((avgExecutionPrice / bestPrice) - 1.0) * 100;
+        } else {
+            // For sells: (best price - avg price) / best price * 100
+            slippagePercent = (1.0 - (avgExecutionPrice / bestPrice)) * 100;
+        }
+        
+        // Ensure slippage is positive and log detailed calculation
+        double result = Math.max(0, slippagePercent);
+        android.util.Log.d("OrderBook", String.format(
+            "Slippage calculation for %s order of $%.2f: best=%.8f, avg=%.8f, slippage=%.4f%%",
+            isBuy ? "buy" : "sell", tradeSize, bestPrice, avgExecutionPrice, result));
+            
+        return result;
     }
 
 }

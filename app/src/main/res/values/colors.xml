@@ -16,6 +16,7 @@
     <color name="success_green">#00C087</color>
     <color name="alert_orange">#FF9332</color>
     <color name="error_red">#FF3B30</color>
+    <color name="warning_yellow">#FFC107</color>
     <color name="profit_positive">#00C087</color>
     <color name="profit_negative">#FF3B30</color>
     <color name="profit_neutral">#FFC107</color>

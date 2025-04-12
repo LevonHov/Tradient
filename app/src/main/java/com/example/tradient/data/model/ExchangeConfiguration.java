@@ -412,4 +412,18 @@ public class ExchangeConfiguration {
     public double getMaxSlippagePercent() {
         return maxSlippagePercent;
     }
+
+    /**
+     * Get the latency score for an exchange
+     * 
+     * @param exchangeName The exchange name
+     * @param defaultScore Default score if not configured
+     * @return The latency score (0.0-1.0)
+     */
+    public double getLatencyScore(String exchangeName, double defaultScore) {
+        String key = exchangeName.toLowerCase();
+        
+        // Use reliability scores as a proxy for latency since they're correlated
+        return reliabilityScores.getOrDefault(key, defaultScore);
+    }
 } 

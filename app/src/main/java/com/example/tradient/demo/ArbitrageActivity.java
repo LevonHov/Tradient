@@ -1,9 +1,10 @@
 package com.example.tradient.demo;
 
 import android.os.Bundle;
+import android.text.method.ScrollingMovementMethod;
 import android.util.Log;
+import android.widget.Button;
 import android.widget.TextView;
-
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.tradient.R;
@@ -12,6 +13,7 @@ import com.example.tradient.data.interfaces.INotificationService;
 import com.example.tradient.data.model.ArbitrageConfiguration;
 import com.example.tradient.data.model.ArbitrageOpportunity;
 import com.example.tradient.data.model.ExchangeConfiguration;
+import com.example.tradient.data.model.OrderBook;
 import com.example.tradient.data.model.RiskAssessment;
 import com.example.tradient.data.model.RiskConfiguration;
 import com.example.tradient.data.model.Ticker;
@@ -22,11 +24,12 @@ import com.example.tradient.data.service.CoinbaseExchangeService;
 import com.example.tradient.data.service.ExchangeService;
 import com.example.tradient.data.service.KrakenExchangeService;
 import com.example.tradient.data.service.OkxExchangeService;
+import com.example.tradient.domain.risk.SlippageAnalyticsBuilder;
 import com.example.tradient.domain.engine.ExchangeToExchangeArbitrage;
 import com.example.tradient.domain.risk.RiskCalculator;
-import com.example.tradient.domain.risk.SlippageAnalyticsBuilder;
 import com.example.tradient.domain.risk.SlippageManagerService;
 import com.example.tradient.domain.risk.SlippageStressTester;
+import com.example.tradient.util.RiskAssessmentAdapter;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -601,60 +604,42 @@ public class ArbitrageActivity extends AppCompatActivity implements INotificatio
     }
     
     /**
-     * Process a single arbitrage opportunity with risk assessment
+     * Process an arbitrage opportunity by evaluating risk and logging details
      */
     private void processArbitrageOpportunity(ArbitrageOpportunity opportunity, 
                                             ExchangeService exA, ExchangeService exB,
                                             RiskCalculator riskCalculator) {
-        // Get buy/sell exchange information
-        String buyExchange = opportunity.getExchangeBuy();
-        String sellExchange = opportunity.getExchangeSell();
-        double buyPrice = opportunity.getBuyPrice();
-        double sellPrice = opportunity.getSellPrice();
-        
-        // Determine which exchange service is buy/sell
-        ExchangeService buyExchangeService = null;
-        ExchangeService sellExchangeService = null;
-        
-        if (buyExchange.equals(exA.getExchangeName())) {
-            buyExchangeService = exA;
-            sellExchangeService = exB;
-        } else {
-            buyExchangeService = exB;
-            sellExchangeService = exA;
-        }
-        
-        if (buyExchangeService != null && sellExchangeService != null) {
-            // Get fees
-            // Use calculateFee method with a sample amount to derive the percentage
-            double sampleAmount = 1000.0; // Use 1000 as base for easier percentage calculation
-            double buyFeeAmount = buyExchangeService.getMakerFee().calculateFee(sampleAmount);
-            double sellFeeAmount = sellExchangeService.getTakerFee().calculateFee(sampleAmount);
+        if (opportunity != null) {
+            // Get ticker data for further analysis
+            String buySymbol = opportunity.getSymbolBuy();
+            String sellSymbol = opportunity.getSymbolSell();
             
-            // Calculate fee percentages
-            double buyFeePercent = (buyFeeAmount / sampleAmount) * 100.0;
-            double sellFeePercent = (sellFeeAmount / sampleAmount) * 100.0;
+            Ticker buyTicker = exA.getTicker(buySymbol);
+            Ticker sellTicker = exB.getTicker(sellSymbol);
             
-            // Calculate dynamic quantity based on price
-            double quantity = calculateDynamicQuantity(buyPrice);
+            // Calculate fees
+            double buyFeePercent = exA.getExchangeFee(buySymbol, true);
+            double sellFeePercent = exB.getExchangeFee(sellSymbol, false);
             
-            // Get tickers for risk assessment
-            String buySymbol = exchangeSymbolMap.get(buyExchangeService).get(opportunity.getNormalizedSymbol());
-            String sellSymbol = exchangeSymbolMap.get(sellExchangeService).get(opportunity.getNormalizedSymbol());
+            // Update opportunity with exchange details if not already set
+            if (opportunity.getBuyFeePercentage() == 0) {
+                opportunity.setBuyFeePercentage(buyFeePercent / 100);  // Convert to decimal
+            }
             
-            Ticker buyTicker = buyExchangeService.getTickerData(buySymbol);
-            Ticker sellTicker = sellExchangeService.getTickerData(sellSymbol);
+            if (opportunity.getSellFeePercentage() == 0) {
+                opportunity.setSellFeePercentage(sellFeePercent / 100);  // Convert to decimal
+            }
             
             // Calculate risk assessment
-            RiskAssessment risk = riskCalculator.calculateRisk(
+            RiskAssessment risk = riskCalculator.calculateRiskAssessment(
                 buyTicker, 
                 sellTicker,
                 buyFeePercent / 100, 
                 sellFeePercent / 100
             );
             
-            // Set data in opportunity
-            opportunity.setRiskAssessment(risk);
+            // Set data in opportunity using adapter
+            RiskAssessmentAdapter.setRiskAssessment(opportunity, risk);
             opportunity.setBuyTicker(buyTicker);
             opportunity.setSellTicker(sellTicker);
             
@@ -666,7 +651,7 @@ public class ArbitrageActivity extends AppCompatActivity implements INotificatio
             );
             
             // Calculate expected slippage
-            double tradeSize = optimalPositionSize / buyPrice;
+            double tradeSize = optimalPositionSize / opportunity.getBuyPrice();
             double buySlippage = calculateExpectedSlippage(buyTicker, true, tradeSize, buySymbol);
             double sellSlippage = calculateExpectedSlippage(sellTicker, false, tradeSize, sellSymbol);
             
@@ -697,7 +682,7 @@ public class ArbitrageActivity extends AppCompatActivity implements INotificatio
             opportunity.getSuccessfulArbitragePercent()));
             
         // Add risk assessment if available
-        RiskAssessment risk = opportunity.getRiskAssessment();
+        RiskAssessment risk = RiskAssessmentAdapter.getRiskAssessment(opportunity);
         if (risk != null) {
             sb.append(String.format("    Risk Score: %.2f | Liquidity: %.2f | Volatility: %.2f\n",
                 risk.getOverallRiskScore(),
@@ -724,11 +709,10 @@ public class ArbitrageActivity extends AppCompatActivity implements INotificatio
      */
     private double calculateOptimalPositionSize(ArbitrageOpportunity opportunity, double availableCapital, double maxPositionPct) {
         // Validate inputs
-        if (opportunity == null || opportunity.getRiskAssessment() == null) {
+        RiskAssessment risk = RiskAssessmentAdapter.getRiskAssessment(opportunity);
+        if (opportunity == null || risk == null) {
             return 0.0;
         }
-
-        RiskAssessment risk = opportunity.getRiskAssessment();
 
         // Extract key risk factors
         double overallRisk = risk.getOverallRiskScore();

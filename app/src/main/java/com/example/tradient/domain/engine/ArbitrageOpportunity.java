@@ -1,5 +1,10 @@
 package com.example.tradient.domain.engine;
 
+import com.example.tradient.data.model.OrderBook;
+import com.example.tradient.data.model.Ticker;
+import com.example.tradient.data.model.TradingPair;
+import com.example.tradient.data.model.RiskAssessment;
+
 /**
  * Domain model representing an arbitrage opportunity between two exchanges.
  * Contains all relevant information about the opportunity including pricing,
@@ -23,6 +28,33 @@ public class ArbitrageOpportunity {
     private double successRate;
     private double liquidityScore = 1.0; // Default value
     private double volatilityScore = 0.95; // Default value
+    private boolean isViable = false;
+    private double potentialProfit;
+    private double profitPercent;
+    private Ticker buyTicker;
+    private Ticker sellTicker;
+    private double slippage;
+    private double volatility;
+    private OrderBook buyOrderBook;
+    private OrderBook sellOrderBook;
+    private int estimatedExecutionTimeMinutes;
+    private Object riskMetrics;
+    private double recommendedPositionSize;
+    private double liquidityFactor;
+    
+    private RiskAssessment riskAssessment;
+    
+    // Constructor with parameters
+    public ArbitrageOpportunity(double potentialProfit, String buyExchange, String sellExchange, TradingPair tradingPair) {
+        this.potentialProfit = potentialProfit;
+        this.buyExchange = buyExchange;
+        this.sellExchange = sellExchange;
+        this.symbol = tradingPair != null ? tradingPair.getSymbol() : null;
+    }
+    
+    // Default constructor
+    public ArbitrageOpportunity() {
+    }
     
     // Getters and setters
     public String getSymbol() {
@@ -159,5 +191,131 @@ public class ArbitrageOpportunity {
     
     public void setVolatilityScore(double volatilityScore) {
         this.volatilityScore = volatilityScore;
+    }
+    
+    public double getPotentialProfit() {
+        return potentialProfit;
+    }
+    
+    public void setPotentialProfit(double potentialProfit) {
+        this.potentialProfit = potentialProfit;
+    }
+    
+    public double getProfitPercent() {
+        return profitPercent;
+    }
+    
+    public void setProfitPercent(double profitPercent) {
+        this.profitPercent = profitPercent;
+    }
+    
+    public boolean isViable() {
+        return isViable;
+    }
+    
+    public void setViable(boolean viable) {
+        this.isViable = viable;
+    }
+    
+    public Ticker getBuyTicker() {
+        return buyTicker;
+    }
+    
+    public void setBuyTicker(Ticker buyTicker) {
+        this.buyTicker = buyTicker;
+    }
+    
+    public Ticker getSellTicker() {
+        return sellTicker;
+    }
+    
+    public void setSellTicker(Ticker sellTicker) {
+        this.sellTicker = sellTicker;
+    }
+    
+    public double getSlippage() {
+        return slippage;
+    }
+    
+    public void setSlippage(double slippage) {
+        this.slippage = slippage;
+    }
+    
+    public double getVolatility() {
+        return volatility;
+    }
+    
+    public void setVolatility(double volatility) {
+        this.volatility = volatility;
+    }
+    
+    public Object getRiskMetrics() {
+        return riskMetrics;
+    }
+    
+    public void setRiskMetrics(Object riskMetrics) {
+        this.riskMetrics = riskMetrics;
+    }
+    
+    public double getRecommendedPositionSize() {
+        return recommendedPositionSize;
+    }
+    
+    public void setRecommendedPositionSize(double recommendedPositionSize) {
+        this.recommendedPositionSize = recommendedPositionSize;
+    }
+    
+    public double getLiquidityFactor() {
+        return liquidityFactor;
+    }
+    
+    public void setLiquidityFactor(double liquidityFactor) {
+        this.liquidityFactor = liquidityFactor;
+    }
+    
+    public OrderBook getBuyOrderBook() {
+        return buyOrderBook;
+    }
+    
+    public void setBuyOrderBook(OrderBook buyOrderBook) {
+        this.buyOrderBook = buyOrderBook;
+    }
+    
+    public OrderBook getSellOrderBook() {
+        return sellOrderBook;
+    }
+    
+    public void setSellOrderBook(OrderBook sellOrderBook) {
+        this.sellOrderBook = sellOrderBook;
+    }
+    
+    public int getEstimatedExecutionTimeMinutes() {
+        return estimatedExecutionTimeMinutes;
+    }
+    
+    public void setEstimatedExecutionTimeMinutes(int estimatedExecutionTimeMinutes) {
+        this.estimatedExecutionTimeMinutes = estimatedExecutionTimeMinutes;
+    }
+    
+    /**
+     * Gets the risk assessment for this opportunity
+     * 
+     * @return The risk assessment
+     */
+    public RiskAssessment getRiskAssessment() {
+        return riskAssessment;
+    }
+    
+    /**
+     * Sets the risk assessment for this opportunity
+     * 
+     * @param riskAssessment The risk assessment to set
+     */
+    public void setRiskAssessment(RiskAssessment riskAssessment) {
+        this.riskAssessment = riskAssessment;
+        if (riskAssessment != null) {
+            // Update risk score based on assessment
+            this.riskScore = riskAssessment.getOverallRiskScore();
+        }
     }
 } 

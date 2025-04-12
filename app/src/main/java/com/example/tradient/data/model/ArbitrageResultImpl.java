@@ -11,12 +11,12 @@ import java.util.Collections;
  * arbitrage result data.
  */
 public class ArbitrageResultImpl implements ArbitrageResult {
-    private final List<ArbitrageOpportunity> opportunities;
+    private final List<com.example.tradient.data.model.ArbitrageOpportunity> opportunities;
     private final long timestamp;
     private final int opportunityCount;
-    private final ArbitrageOpportunity bestOpportunity;
+    private final com.example.tradient.data.model.ArbitrageOpportunity bestOpportunity;
 
-    public ArbitrageResultImpl(List<ArbitrageOpportunity> opportunities) {
+    public ArbitrageResultImpl(List<com.example.tradient.data.model.ArbitrageOpportunity> opportunities) {
         this.opportunities = new ArrayList<>(opportunities);
         this.timestamp = System.currentTimeMillis();
         this.opportunityCount = opportunities.size();

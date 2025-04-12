@@ -3,6 +3,7 @@ package com.example.tradient.config;
 import com.example.tradient.data.model.ArbitrageConfiguration;
 import com.example.tradient.data.model.ExchangeConfiguration;
 import com.example.tradient.data.model.RiskConfiguration;
+import com.example.tradient.data.model.MarketConfiguration;
 
 /**
  * Factory for accessing configuration objects.
@@ -18,6 +19,8 @@ public class ConfigurationFactory {
     private static final String RISK_CONFIG_PATH = "risk";
     private static final String TRADING_CONFIG_PATH = "trading";
     private static final String SYSTEM_CONFIG_PATH = "system";
+    
+    private static RiskConfiguration riskConfig = new RiskConfiguration();
     
     /**
      * Private constructor to prevent instantiation
@@ -50,7 +53,16 @@ public class ConfigurationFactory {
      * @return The risk configuration
      */
     public static RiskConfiguration getRiskConfig() {
-        return configService.getObject(RISK_CONFIG_PATH, RiskConfiguration.class, new RiskConfiguration());
+        return riskConfig;
+    }
+    
+    /**
+     * Get the market configuration
+     * 
+     * @return The market configuration
+     */
+    public static MarketConfiguration getMarketConfig() {
+        return configService.getObject(TRADING_CONFIG_PATH + ".market", MarketConfiguration.class, new MarketConfiguration());
     }
     
     /**
@@ -104,5 +116,35 @@ public class ConfigurationFactory {
      */
     public static boolean reloadConfiguration() {
         return configService.reload();
+    }
+    
+    /**
+     * Gets the minimum profit percentage for arbitrage.
+     * @return Minimum profit percentage configuration
+     */
+    public static class ArbitrageConfig {
+        private double minProfitPercent = 0.5; // 0.5%
+        
+        public double getMinProfitPercent() {
+            return minProfitPercent;
+        }
+    }
+    
+    /**
+     * Gets the market configuration.
+     * @return MarketConfig instance
+     */
+    public static class MarketConfig {
+        public double getRegimeScore(String symbol, double defaultValue) {
+            return defaultValue;
+        }
+        
+        public double getSentimentScore(String symbol, double defaultValue) {
+            return defaultValue;
+        }
+        
+        public double getCorrelationScore(String symbol, double defaultValue) {
+            return defaultValue;
+        }
     }
 } 

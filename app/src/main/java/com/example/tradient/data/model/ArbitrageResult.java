@@ -10,7 +10,7 @@ import java.util.List;
  * containing a list of opportunities found along with metadata.
  */
 public class ArbitrageResult implements com.example.tradient.data.interfaces.ArbitrageResult {
-    private final List<ArbitrageOpportunity> opportunities;
+    private final List<com.example.tradient.data.model.ArbitrageOpportunity> opportunities;
     private final long timestamp;
     
     /**
@@ -26,7 +26,7 @@ public class ArbitrageResult implements com.example.tradient.data.interfaces.Arb
      *
      * @param opportunities The list of arbitrage opportunities
      */
-    public ArbitrageResult(List<ArbitrageOpportunity> opportunities) {
+    public ArbitrageResult(List<com.example.tradient.data.model.ArbitrageOpportunity> opportunities) {
         this.opportunities = opportunities != null ? 
             new ArrayList<>(opportunities) : new ArrayList<>();
         this.timestamp = System.currentTimeMillis();
@@ -53,6 +53,7 @@ public class ArbitrageResult implements com.example.tradient.data.interfaces.Arb
             return null;
         }
         
+        // Find best opportunity based on potential profit
         return opportunities.stream()
             .max((a, b) -> Double.compare(a.getPotentialProfit(), b.getPotentialProfit()))
             .orElse(null);
@@ -63,7 +64,7 @@ public class ArbitrageResult implements com.example.tradient.data.interfaces.Arb
      *
      * @param opportunity The opportunity to add
      */
-    public void addOpportunity(ArbitrageOpportunity opportunity) {
+    public void addOpportunity(com.example.tradient.data.model.ArbitrageOpportunity opportunity) {
         if (opportunity != null) {
             opportunities.add(opportunity);
         }

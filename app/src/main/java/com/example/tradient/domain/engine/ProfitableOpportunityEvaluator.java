@@ -9,6 +9,8 @@ import com.example.tradient.domain.risk.RiskAssessmentService;
  */
 public class ProfitableOpportunityEvaluator {
     
+    private static final double DEFAULT_MIN_PROFIT_THRESHOLD = 0.5; // 0.5%
+    
     private final RiskAssessmentService riskService;
     private final double minProfitThreshold;
     private final double minRiskAdjustedProfit;
@@ -19,8 +21,18 @@ public class ProfitableOpportunityEvaluator {
      * @param riskService The risk assessment service
      */
     public ProfitableOpportunityEvaluator(RiskAssessmentService riskService) {
+        this(riskService, DEFAULT_MIN_PROFIT_THRESHOLD);
+    }
+    
+    /**
+     * Initializes the evaluator with required services and configuration.
+     *
+     * @param riskService The risk assessment service
+     * @param minProfitThreshold The minimum profit threshold
+     */
+    public ProfitableOpportunityEvaluator(RiskAssessmentService riskService, double minProfitThreshold) {
         this.riskService = riskService;
-        this.minProfitThreshold = ConfigurationFactory.getDouble("arbitrage.minProfitThreshold", 0.1);
+        this.minProfitThreshold = minProfitThreshold;
         this.minRiskAdjustedProfit = ConfigurationFactory.getDouble("arbitrage.minRiskAdjustedProfit", 0.05);
     }
     

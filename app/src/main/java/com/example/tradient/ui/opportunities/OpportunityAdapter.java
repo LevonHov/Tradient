@@ -30,6 +30,8 @@ import com.example.tradient.domain.risk.SlippageAnalyticsBuilder;
 import com.example.tradient.util.TimeEstimationUtil;
 import com.example.tradient.domain.risk.AssetRiskCalculator;
 import com.example.tradient.data.model.OrderBook;
+import com.example.tradient.util.AssetLogoMap;
+import com.example.tradient.util.RiskAssessmentAdapter;
 
 import java.text.NumberFormat;
 import java.util.List;
@@ -47,6 +49,7 @@ public class OpportunityAdapter extends RecyclerView.Adapter<OpportunityAdapter.
     private final SlippageManagerService slippageManager;
     private final RiskCalculator riskCalculator;
     private final AssetRiskCalculator assetRiskCalculator;
+    private Context context;
     
     // Configuration values from ArbitrageProcessMain
     private final double minProfitPercent;
@@ -58,6 +61,18 @@ public class OpportunityAdapter extends RecyclerView.Adapter<OpportunityAdapter.
     private static final int COLOR_PROFIT_GREEN = Color.parseColor("#00C087");
     private static final int COLOR_PROFIT_YELLOW = Color.parseColor("#FF9332");
     private static final int COLOR_PROFIT_RED = Color.parseColor("#FF3B30");
+    
+    // Risk color constants
+    private static final int COLOR_RISK_MINIMAL = Color.parseColor("#00C853");      // Green
+    private static final int COLOR_RISK_VERY_LOW = Color.parseColor("#64DD17");     // Light Green
+    private static final int COLOR_RISK_LOW = Color.parseColor("#AEEA00");          // Lime
+    private static final int COLOR_RISK_MODERATE = Color.parseColor("#FFEB3B");     // Yellow
+    private static final int COLOR_RISK_BALANCED = Color.parseColor("#FFC107");     // Amber
+    private static final int COLOR_RISK_MODERATE_HIGH = Color.parseColor("#FF9800"); // Orange
+    private static final int COLOR_RISK_HIGH = Color.parseColor("#FF5722");         // Deep Orange
+    private static final int COLOR_RISK_VERY_HIGH = Color.parseColor("#F44336");    // Red
+    private static final int COLOR_RISK_EXTREME = Color.parseColor("#B71C1C");      // Dark Red
+    private static final int COLOR_RISK_UNKNOWN = Color.parseColor("#9E9E9E");      // Grey
 
     public OpportunityAdapter(List<ArbitrageOpportunity> opportunities) {
         this.opportunities = opportunities;
@@ -85,7 +100,8 @@ public class OpportunityAdapter extends RecyclerView.Adapter<OpportunityAdapter.
     @NonNull
     @Override
     public OpportunityViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View view = LayoutInflater.from(parent.getContext())
+        context = parent.getContext();
+        View view = LayoutInflater.from(context)
                 .inflate(R.layout.item_opportunity, parent, false);
         return new OpportunityViewHolder(view);
     }
@@ -105,25 +121,8 @@ public class OpportunityAdapter extends RecyclerView.Adapter<OpportunityAdapter.
         // Set symbol and profit
         holder.symbolText.setText(opportunity.getNormalizedSymbol());
         
-        // Get fee percentages (they are stored in decimal format, e.g., 0.001 for 0.1%)
-        double buyFeePercent = opportunity.getBuyFeePercentage();
-        double sellFeePercent = opportunity.getSellFeePercentage();
-        
-        // Get buy and sell prices from opportunity
-        double buyPrice = opportunity.getBuyPrice();
-        double sellPrice = opportunity.getSellPrice();
-        
-        // Calculate profit using our new profit calculator
-        // Assume 1.0 as amount for percentage calculation
-        ProfitResult profitResult = ProfitCalculator.calculateArbitrageProfit(
-                buyPrice, 
-                sellPrice, 
-                buyFeePercent, // Fees are already in decimal format (e.g., 0.001 for 0.1%)
-                sellFeePercent, // Fees are already in decimal format (e.g., 0.001 for 0.1%)
-                1.0);
-        
-        // Get the profit percentage
-        double profitPercentage = profitResult.getPercentageProfit();
+        // Get profit percentage directly from opportunity
+        double profitPercentage = opportunity.getProfitPercent();
         
         // Format and display profit with angle bracket indicator
         String profitDisplay;
@@ -156,14 +155,11 @@ public class OpportunityAdapter extends RecyclerView.Adapter<OpportunityAdapter.
         MaterialCardView profitBadge = holder.itemView.findViewById(R.id.profit_badge);
         profitBadge.setBackground(ContextCompat.getDrawable(holder.itemView.getContext(), profitBadgeBackground));
         
-        // Store the calculated profit for potential later use
-        opportunity.setNetProfitPercentage(profitPercentage);
-        
         // Display basic information
         Log.d("OpportunityAdapter", "Arbitrage Opportunity - Symbol: " + opportunity.getNormalizedSymbol());
-        Log.d("OpportunityAdapter", "Buy Price: " + buyPrice + ", Sell Price: " + sellPrice);
-        Log.d("OpportunityAdapter", "Buy Fee: " + (buyFeePercent * 100) + "%, Sell Fee: " + (sellFeePercent * 100) + "%");
-        Log.d("OpportunityAdapter", "Calculated Profit: " + profitPercentage + "%");
+        Log.d("OpportunityAdapter", "Buy Price: " + opportunity.getBuyPrice() + ", Sell Price: " + opportunity.getSellPrice());
+        Log.d("OpportunityAdapter", "Buy Fee: " + (opportunity.getBuyFeePercentage() * 100) + "%, Sell Fee: " + (opportunity.getSellFeePercentage() * 100) + "%");
+        Log.d("OpportunityAdapter", "Profit: " + profitPercentage + "%");
         
         // Set exchange info
         holder.buyExchangeName.setText(opportunity.getExchangeBuy());
@@ -178,140 +174,67 @@ public class OpportunityAdapter extends RecyclerView.Adapter<OpportunityAdapter.
         holder.sellPrice.setText(currencyFormatter.format(opportunity.getSellPrice()));
         
         // Display fees (convert from decimal to percentage for display)
-        holder.buyFeeText.setText(String.format("%.2f%%", buyFeePercent * 100));
-        holder.sellFeeText.setText(String.format("%.2f%%", sellFeePercent * 100));
+        holder.buyFeeText.setText(String.format("%.2f%%", opportunity.getBuyFeePercentage() * 100));
+        holder.sellFeeText.setText(String.format("%.2f%%", opportunity.getSellFeePercentage() * 100));
         
-        // Calculate optimal position size based on ArbitrageProcessMain algorithm
-        double optimalPosition = calculateOptimalPositionSize(opportunity, availableCapital, maxPositionPercent);
+        // Get risk assessment from opportunity
+        RiskAssessment riskAssessment = RiskAssessmentAdapter.getRiskAssessment(opportunity);
         
-        // Calculate slippage using the advanced SlippageAnalyticsBuilder
-        double tradeSize = optimalPosition / opportunity.getBuyPrice();
-        double totalSlippage = calculateAdvancedSlippage(opportunity, tradeSize);
-        
-        // Calculate asset-specific risk instead of opportunity risk
-        String assetSymbol = opportunity.getNormalizedSymbol();
-        calculateAssetRisk(opportunity);
-        int riskScore = assetRiskCalculator.getAssetRiskPercentage(assetSymbol);
-        
-        // Set risk display with actual percentage and better visualization
-        int progressColor;
-        String riskText;
-        
-        // Use 10 color gradations from green to red based on risk score
-        if (riskScore < 10) {
-            riskText = "Minimal";
-            progressColor = Color.parseColor("#00E676"); // Bright green
-        } else if (riskScore < 20) {
-            riskText = "Minor";
-            progressColor = Color.parseColor("#00C853"); // Green
-        } else if (riskScore < 30) {
-            riskText = "Low";
-            progressColor = Color.parseColor("#64DD17"); // Light green
-        } else if (riskScore < 40) {
-            riskText = "Moderate";
-            progressColor = Color.parseColor("#9CCC65"); // Pale green
-        } else if (riskScore < 50) {
-            riskText = "Balanced";
-            progressColor = Color.parseColor("#CDDC39"); // Lime green
-        } else if (riskScore < 60) {
-            riskText = "Medium";
-            progressColor = Color.parseColor("#FFEB3B"); // Yellow
-        } else if (riskScore < 70) {
-            riskText = "Elevated";
-            progressColor = Color.parseColor("#FFC107"); // Amber
-        } else if (riskScore < 80) {
-            riskText = "Significant";
-            progressColor = Color.parseColor("#FF9800"); // Orange
-        } else if (riskScore < 90) {
-            riskText = "High";
-            progressColor = Color.parseColor("#FF5722"); // Deep orange
+        // Display risk information
+        if (riskAssessment != null) {
+            // Get risk score from assessment
+            double riskScore = riskAssessment.getRiskScore();
+            
+            // Set risk progress
+            int progress = (int) (riskScore * 100);
+            holder.riskProgress.setProgress(progress);
+            
+            // Get risk level text
+            String riskLevelText = getRiskLevelText(riskScore);
+            holder.riskText.setText(riskLevelText);
+            
+            // Set risk color based on risk score
+            int riskColor = getRiskColor(riskScore);
+            holder.riskText.setTextColor(riskColor);
+            
+            // Set progress color
+            holder.riskProgress.setProgressTintList(ColorStateList.valueOf(riskColor));
+            
+            // Set slippage text if available
+            double slippage = riskAssessment.getSlippageEstimate();
+            if (slippage > 0) {
+                holder.slippageText.setText(String.format("Slip: %.2f%%", slippage * 100));
+            } else {
+                holder.slippageText.setText("Slip: --");
+            }
+            
+            // Set estimated execution time if available
+            double timeEstimateMinutes = riskAssessment.getExecutionTimeEstimate();
+            if (timeEstimateMinutes > 0) {
+                if (timeEstimateMinutes < 1) {
+                    holder.timeText.setText(String.format("Time: %.0fs", timeEstimateMinutes * 60));
+                } else {
+                    holder.timeText.setText(String.format("Time: %.1fm", timeEstimateMinutes));
+                }
+            } else {
+                holder.timeText.setText("Time: --");
+            }
+            
+            // Set ROI efficiency if available
+            double roiEfficiency = riskAssessment.getRoiEfficiency();
+            if (roiEfficiency > 0) {
+                holder.roiEfficiencyText.setText(String.format("ROI/h: %.1f", roiEfficiency));
+            } else {
+                holder.roiEfficiencyText.setText("ROI/h: --");
+            }
         } else {
-            riskText = "Extreme";
-            progressColor = Color.parseColor("#F44336"); // Red
-        }
-        
-        holder.riskText.setText(riskText);
-        holder.riskText.setTextColor(progressColor);
-        
-        // Set risk indicator color
-        View riskIndicator = holder.itemView.findViewById(R.id.risk_indicator);
-        if (riskIndicator != null) {
-            riskIndicator.setBackgroundTintList(ColorStateList.valueOf(progressColor));
-        }
-        
-        // Set progress to show the actual risk percentage with animation
-        if (holder.riskProgress.getProgress() != riskScore) {
+            // No risk assessment available, show default values
             holder.riskProgress.setProgress(0);
-            holder.riskProgress.setProgressTintList(ColorStateList.valueOf(progressColor));
-            holder.riskProgress.setProgress(riskScore, true); // Animate the progress change
-        } else {
-            holder.riskProgress.setProgressTintList(ColorStateList.valueOf(progressColor));
-        }
-        
-        // Set slippage text using the advanced calculation
-        holder.slippageText.setText(String.format("%.2f%%", totalSlippage * 100));
-        
-        // Calculate estimated execution time using real market data
-        Ticker buyTicker = opportunity.getBuyTicker();
-        Ticker sellTicker = opportunity.getSellTicker();
-        OrderBook buyOrderBook = null; // opportunity.getBuyOrderBook() doesn't exist
-        OrderBook sellOrderBook = null; // opportunity.getSellOrderBook() doesn't exist
-        String baseAsset = opportunity.getNormalizedSymbol().split("/")[0];
-        double tradeAmount = calculateOptimalTradeSize(opportunity);
-        
-        // Use a volatility estimate based on ticker data
-        TimeEstimationUtil.MarketVolatility volatility = estimateVolatilityFromTickers(buyTicker, sellTicker);
-        
-        // Get a dynamic, data-driven time estimate
-        Pair<Double, Double> timeEstimate = TimeEstimationUtil.estimateArbitrageTimeMinutes(
-                opportunity.getExchangeBuy(), 
-                opportunity.getExchangeSell(),
-                buyTicker,
-                sellTicker,
-                buyOrderBook,
-                sellOrderBook,
-                tradeAmount,
-                volatility,
-                opportunity.getNormalizedSymbol());
-                
-        double estimatedTimeMinutes = timeEstimate.first;
-        double timeUncertainty = timeEstimate.second;
-        
-        // Calculate ROI efficiency (profit per hour)
-        double roiEfficiency = TimeEstimationUtil.calculateROIEfficiency(
-                profitPercentage, estimatedTimeMinutes);
-        
-        // Format time display with confidence interval
-        String timeDisplay = TimeEstimationUtil.formatTimeString(estimatedTimeMinutes);
-        
-        // Update UI with time information
-        holder.timeText.setText(timeDisplay);
-        
-        // Get dynamic time thresholds based on current market conditions
-        Double[] timeThresholds = TimeEstimationUtil.getTimeThresholds(assetSymbol, buyTicker);
-        double goodThreshold = timeThresholds[0];
-        double mediumThreshold = timeThresholds[1];
-        
-        // Set color based on dynamic time thresholds
-        if (estimatedTimeMinutes < goodThreshold) {
-            holder.timeText.setTextColor(COLOR_PROFIT_GREEN);
-        } else if (estimatedTimeMinutes < mediumThreshold) {
-            holder.timeText.setTextColor(COLOR_PROFIT_YELLOW);
-        } else {
-            holder.timeText.setTextColor(COLOR_PROFIT_RED);
-        }
-        
-        // Display ROI efficiency
-        String roiDisplay = String.format("%.2f%%/h", roiEfficiency);
-        holder.roiEfficiencyText.setText(roiDisplay);
-        
-        // Set color based on ROI efficiency (higher is better)
-        if (roiEfficiency > 5.0) {
-            holder.roiEfficiencyText.setTextColor(COLOR_PROFIT_GREEN);
-        } else if (roiEfficiency > 1.0) {
-            holder.roiEfficiencyText.setTextColor(COLOR_PROFIT_YELLOW);
-        } else {
-            holder.roiEfficiencyText.setTextColor(COLOR_PROFIT_RED);
+            holder.riskText.setText("UNKNOWN");
+            holder.riskText.setTextColor(COLOR_RISK_UNKNOWN);
+            holder.slippageText.setText("Slip: --");
+            holder.timeText.setText("Time: --");
+            holder.roiEfficiencyText.setText("ROI/h: --");
         }
     }
 
@@ -326,60 +249,96 @@ public class OpportunityAdapter extends RecyclerView.Adapter<OpportunityAdapter.
     }
     
     /**
-     * Calculate a comprehensive risk score from 0 (lowest risk) to 100 (highest risk)
+     * Calculate a comprehensive risk score from 0 (highest risk) to 100 (lowest risk)
      * Using the advanced RiskCalculator with all factors considered
      */
     private int calculateRiskScore(ArbitrageOpportunity opportunity) {
         try {
-            // If opportunity has no risk assessment, calculate it
             if (opportunity == null) {
-                return 50; // Default to moderate risk if missing opportunity
+                return 0; // Return highest risk if opportunity is null
             }
             
-            RiskAssessment assessment;
-            if (opportunity.getRiskAssessment() == null) {
-                // Calculate risk directly using the RiskCalculator
-                Ticker buyTicker = opportunity.getBuyTicker();
-                Ticker sellTicker = opportunity.getSellTicker();
-                double buyFees = opportunity.getBuyFeePercentage();
-                double sellFees = opportunity.getSellFeePercentage();
-                
-                if (buyTicker == null || sellTicker == null) {
-                    return 50; // Default to moderate risk if missing tickers
+            // Get the risk assessment using the adapter
+            RiskAssessment assessment = RiskAssessmentAdapter.getRiskAssessment(opportunity);
+            if (assessment == null) {
+                // Calculate risk assessment using RiskCalculator
+                RiskCalculator riskCalculator = new RiskCalculator();
+                assessment = riskCalculator.assessRisk(opportunity);
+                if (assessment == null) {
+                    return 0; // Return highest risk if assessment fails
                 }
-                
-                assessment = riskCalculator.calculateRisk(buyTicker, sellTicker, buyFees, sellFees);
-                opportunity.setRiskAssessment(assessment); // Cache for future use
-            } else {
-                assessment = opportunity.getRiskAssessment();
+                // Store the assessment in the opportunity using the adapter
+                RiskAssessmentAdapter.setRiskAssessment(opportunity, assessment);
             }
             
-            // Extract risk factors directly from the assessment
-            double overallRisk = assessment.getOverallRiskScore();
-            double slippageRisk = assessment.getSlippageRisk();
-            double liquidityScore = assessment.getLiquidityScore();
-            double volatilityScore = assessment.getVolatilityScore();
-            double depthScore = assessment.getDepthScore();
-            double executionRisk = assessment.getExecutionRisk();
+            // Get the risk score from the assessment (0-1 scale)
+            double riskScore = assessment.getOverallRiskScore();
             
-            // Calculate a weighted composite risk (lower scores for liquidity/depth/volatility indicate higher risk)
-            double compositeRisk = riskCalculator.calculateOverallRisk(assessment);
+            // Convert to percentage (0-100) for display
+            // Higher risk score means lower risk, so we keep it as is
+            int displayScore = (int) (riskScore * 100);
             
-            // Convert to percentage (0-100)
-            int riskScore = (int)(compositeRisk * 100);
+            // Log the risk score for debugging
+            Log.d("OpportunityAdapter", String.format("Risk score for %s: %.2f (display: %d)",
+                opportunity.getNormalizedSymbol(), riskScore, displayScore));
             
-            // Log risk factors for debugging
-            Log.d(TAG, String.format("Risk factors: overall=%.2f, slippage=%.2f, liquidity=%.2f, volatility=%.2f, " +
-                    "depth=%.2f, execution=%.2f, composite=%.2f", 
-                    overallRisk, slippageRisk, liquidityScore, volatilityScore, depthScore, executionRisk, compositeRisk));
-            
-            // Ensure score is within valid range
-            return Math.max(0, Math.min(100, riskScore));
+            return displayScore;
         } catch (Exception e) {
-            Log.e(TAG, "Error calculating risk score: " + e.getMessage());
-            // If risk calculation fails, provide a moderate risk value
-            return 50;
+            Log.e("OpportunityAdapter", "Error calculating risk score: " + e.getMessage());
+            return 0; // Return highest risk on error
         }
+    }
+
+    private void bindRiskLevel(TextView riskLevelView, ArbitrageOpportunity opportunity) {
+        RiskAssessment riskAssessment = RiskAssessmentAdapter.getRiskAssessment(opportunity);
+        if (riskAssessment != null) {
+            double riskScore = riskAssessment.getOverallRiskScore();
+            String riskLevel = getRiskLevelText(riskScore);
+            int riskColor = getRiskColor(riskScore);
+            
+            riskLevelView.setText(riskLevel);
+            riskLevelView.setTextColor(riskColor);
+            
+            // Log the risk score for debugging
+            Log.d(TAG, "Risk Score for " + opportunity.getNormalizedSymbol() + 
+                  ": " + riskScore + " (" + riskLevel + ")");
+        } else {
+            riskLevelView.setText("Unknown Risk");
+            riskLevelView.setTextColor(COLOR_RISK_UNKNOWN);
+        }
+    }
+
+    private String getRiskLevelText(double riskScore) {
+        if (riskScore >= 0.8) return "Minimal Risk";
+        if (riskScore >= 0.7) return "Very Low Risk";
+        if (riskScore >= 0.6) return "Low Risk";
+        if (riskScore >= 0.5) return "Moderate Risk";
+        if (riskScore >= 0.4) return "Balanced Risk";
+        if (riskScore >= 0.3) return "Moderate High Risk";
+        if (riskScore >= 0.2) return "High Risk";
+        if (riskScore >= 0.1) return "Very High Risk";
+        return "Extreme Risk";
+    }
+
+    private int getRiskColor(double riskScore) {
+        if (riskScore >= 0.8) return COLOR_RISK_MINIMAL;
+        if (riskScore >= 0.7) return COLOR_RISK_VERY_LOW;
+        if (riskScore >= 0.6) return COLOR_RISK_LOW;
+        if (riskScore >= 0.5) return COLOR_RISK_MODERATE;
+        if (riskScore >= 0.4) return COLOR_RISK_BALANCED;
+        if (riskScore >= 0.3) return COLOR_RISK_MODERATE_HIGH;
+        if (riskScore >= 0.2) return COLOR_RISK_HIGH;
+        if (riskScore >= 0.1) return COLOR_RISK_VERY_HIGH;
+        return COLOR_RISK_EXTREME;
+    }
+    
+    private double calculateExecutionRisk(String buyExchange, String sellExchange) {
+        // Assign execution risk based on exchange reliability
+        if (buyExchange.equals("binance") && sellExchange.equals("binance")) return 0.2;
+        if (buyExchange.equals("coinbase") && sellExchange.equals("coinbase")) return 0.3;
+        if (buyExchange.equals("kraken") && sellExchange.equals("kraken")) return 0.4;
+        if (buyExchange.equals("bybit") && sellExchange.equals("bybit")) return 0.5;
+        return 0.7; // Higher risk for other exchanges
     }
     
     /**
@@ -521,28 +480,8 @@ public class OpportunityAdapter extends RecyclerView.Adapter<OpportunityAdapter.
      * Set the appropriate exchange logo based on exchange name
      */
     private void setExchangeLogo(ImageView imageView, String exchangeName) {
-        // Use the actual exchange logos from drawable resources
-        switch (exchangeName.toLowerCase()) {
-            case "binance":
-                imageView.setImageResource(R.drawable.binance_logo);
-                break;
-            case "coinbase":
-                imageView.setImageResource(R.drawable.coinbase_logo);
-                break;
-            case "kraken":
-                imageView.setImageResource(R.drawable.kraken_logo);
-                break;
-            case "bybit":
-                imageView.setImageResource(R.drawable.bybit_logo);
-                break;
-            case "okx":
-                imageView.setImageResource(R.drawable.okx_logo);
-                break;
-            default:
-                // Fallback for unknown exchanges
-                imageView.setImageResource(R.drawable.ic_opportunities);
-                break;
-        }
+        // Use the AssetLogoMap utility to get the appropriate logo resource
+        imageView.setImageResource(AssetLogoMap.getExchangeLogo(exchangeName));
     }
 
     /**
@@ -568,8 +507,8 @@ public class OpportunityAdapter extends RecyclerView.Adapter<OpportunityAdapter.
             RiskAssessment assessment = assetRiskCalculator.calculateAssetRisk(
                     symbol, buyTicker, sellTicker, buyFee, sellFee);
             
-            // Store the risk assessment in the opportunity for later use
-            opportunity.setRiskAssessment(assessment);
+            // Store the risk assessment in the opportunity for later use using the adapter
+            RiskAssessmentAdapter.setRiskAssessment(opportunity, assessment);
             
             // Log the risk factors for debugging
             Map<String, Integer> factors = assetRiskCalculator.getDetailedRiskFactors(symbol);

@@ -2,6 +2,7 @@ package com.example.tradient.domain.position;
 
 import com.example.tradient.data.model.ArbitrageOpportunity;
 import com.example.tradient.data.model.RiskAssessment;
+import com.example.tradient.util.RiskAssessmentAdapter;
 
 /**
  * Provides advanced position sizing algorithms for arbitrage trading.
@@ -42,11 +43,10 @@ public class PositionSizer {
      */
     public double calculateOptimalPositionSize(ArbitrageOpportunity opportunity, double availableCapital) {
         // Validate inputs
-        if (opportunity == null || opportunity.getRiskAssessment() == null) {
+        RiskAssessment risk = RiskAssessmentAdapter.getRiskAssessment(opportunity);
+        if (opportunity == null || risk == null) {
             return 0.0;
         }
-        
-        RiskAssessment risk = opportunity.getRiskAssessment();
         
         // Extract key risk factors
         double overallRisk = risk.getOverallRiskScore();
@@ -111,8 +111,9 @@ public class PositionSizer {
         double positionSize = availableCapital * riskPercent;
         
         // Adjust for volatility if risk assessment is available
-        if (opportunity.getRiskAssessment() != null) {
-            double volatilityScore = opportunity.getRiskAssessment().getVolatilityScore();
+        RiskAssessment risk = RiskAssessmentAdapter.getRiskAssessment(opportunity);
+        if (risk != null) {
+            double volatilityScore = risk.getVolatilityScore();
             // Reduce position for high volatility
             positionSize *= volatilityScore;
         }
