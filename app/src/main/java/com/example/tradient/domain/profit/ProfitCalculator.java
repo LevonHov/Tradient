@@ -1196,4 +1196,147 @@ public class ProfitCalculator {
         
         return percentageProfit;
     }
+
+    /**
+     * Calculate arbitrage profit with comprehensive fee consideration.
+     * This implements the step-by-step formula approach for arbitrage profit calculation
+     * that explicitly accounts for all types of fees in the arbitrage process.
+     * 
+     * @param initialAmount The starting amount in the base currency
+     * @param buyPrice The price to buy at on the first exchange
+     * @param sellPrice The price to sell at on the second exchange 
+     * @param buyTradingFee Trading fee for buy transaction as a decimal (e.g., 0.001 for 0.1%)
+     * @param sellTradingFee Trading fee for sell transaction as a decimal (e.g., 0.001 for 0.1%)
+     * @param withdrawalFee Fixed fee for withdrawing from buy exchange (in base currency)
+     * @param networkFee Fixed network/blockchain fee (in base currency)
+     * @param depositFee Fixed or percentage fee for depositing to sell exchange (in base currency)
+     * @return A ProfitResult containing absolute profit, percentage profit, and profit per unit
+     */
+    public static ProfitResult calculateComprehensiveArbitrageProfit(
+            double initialAmount,
+            double buyPrice,
+            double sellPrice,
+            double buyTradingFee,
+            double sellTradingFee,
+            double withdrawalFee,
+            double networkFee,
+            double depositFee) {
+            
+        Log.d(TAG, String.format(
+                "Starting comprehensive profit calculation with initial amount: %.8f, buy: %.8f, sell: %.8f",
+                initialAmount, buyPrice, sellPrice));
+                
+        // Step 1: Calculate amount after buy trade including trading fee
+        double buyTradeAmount = (initialAmount / buyPrice) * (1 - buyTradingFee);
+        Log.d(TAG, String.format("Amount after buy trade (including %.4f%% fee): %.8f", 
+                buyTradingFee * 100, buyTradeAmount));
+        
+        // Step 2: Subtract withdrawal fee (fixed amount in the purchased asset)
+        double amountAfterWithdrawal = buyTradeAmount - withdrawalFee;
+        Log.d(TAG, String.format("Amount after withdrawal (fee: %.8f): %.8f", 
+                withdrawalFee, amountAfterWithdrawal));
+        
+        // Step 3: Subtract network fee if applicable
+        double amountAfterNetwork = amountAfterWithdrawal - networkFee;
+        Log.d(TAG, String.format("Amount after network fee (fee: %.8f): %.8f", 
+                networkFee, amountAfterNetwork));
+        
+        // Step 4: Calculate deposit to second exchange (if percentage fee)
+        double amountAfterDeposit = amountAfterNetwork - depositFee;
+        Log.d(TAG, String.format("Amount after deposit fee (fee: %.8f): %.8f", 
+                depositFee, amountAfterDeposit));
+        
+        // Step 5: Calculate final amount after selling, including sell trading fee
+        double finalAmount = (amountAfterDeposit * sellPrice) * (1 - sellTradingFee);
+        Log.d(TAG, String.format("Final amount after sell (including %.4f%% fee): %.8f", 
+                sellTradingFee * 100, finalAmount));
+        
+        // Calculate absolute profit
+        double absoluteProfit = finalAmount - initialAmount;
+        
+        // Calculate profit percentage
+        double percentageProfit = ((finalAmount / initialAmount) - 1) * 100;
+        
+        // Calculate profit per unit (rarely used, but maintaining for compatibility)
+        double profitPerUnit = absoluteProfit / initialAmount;
+        
+        Log.d(TAG, String.format(
+                "Comprehensive profit calculation result: Initial=%.8f, Final=%.8f, Profit=%.8f (%.4f%%)",
+                initialAmount, finalAmount, absoluteProfit, percentageProfit));
+        
+        return new ProfitResult(absoluteProfit, percentageProfit, profitPerUnit);
+    }
+    
+    /**
+     * Estimate withdrawal fee for a given asset
+     * 
+     * @param asset The asset/currency symbol
+     * @param exchange The exchange name
+     * @return Estimated withdrawal fee in asset units
+     */
+    public static double estimateWithdrawalFee(String asset, String exchange) {
+        // Default withdrawal fees for common assets on various exchanges
+        Map<String, Map<String, Double>> withdrawalFees = new HashMap<String, Map<String, Double>>() {{
+            put("BTC", new HashMap<String, Double>() {{
+                put("binance", 0.0005);
+                put("coinbase", 0.0003);
+                put("kraken", 0.0002);
+                put("kucoin", 0.0005);
+                put("bybit", 0.0006);
+                put("default", 0.0005);
+            }});
+            put("ETH", new HashMap<String, Double>() {{
+                put("binance", 0.005);
+                put("coinbase", 0.003);
+                put("kraken", 0.004);
+                put("kucoin", 0.006);
+                put("bybit", 0.004);
+                put("default", 0.005);
+            }});
+            put("USDT", new HashMap<String, Double>() {{
+                put("binance", 20.0);  // Fixed fee
+                put("coinbase", 25.0); // Fixed fee
+                put("kraken", 5.0);    // Fixed fee
+                put("kucoin", 10.0);   // Fixed fee
+                put("bybit", 15.0);    // Fixed fee
+                put("default", 20.0);  // Fixed fee
+            }});
+            // Default for other assets
+            put("default", new HashMap<String, Double>() {{
+                put("default", 0.001); // 0.1% of asset value as default
+            }});
+        }};
+        
+        // Normalize inputs
+        String normalizedAsset = asset.toUpperCase();
+        String normalizedExchange = exchange.toLowerCase();
+        
+        // Get asset-specific fee map
+        Map<String, Double> assetFees = withdrawalFees.getOrDefault(normalizedAsset, 
+                                                                   withdrawalFees.get("default"));
+        
+        // Get exchange-specific fee or default for this asset
+        return assetFees.getOrDefault(normalizedExchange, assetFees.get("default"));
+    }
+    
+    /**
+     * Estimate network fee for blockchain transfers
+     * 
+     * @param asset The asset/currency symbol
+     * @return Estimated network fee in asset units
+     */
+    public static double estimateNetworkFee(String asset) {
+        // Default network fees for common assets
+        Map<String, Double> networkFees = new HashMap<String, Double>() {{
+            put("BTC", 0.0001);  // Bitcoin network fee
+            put("ETH", 0.003);   // Ethereum gas cost converted to ETH
+            put("SOL", 0.0001);  // Solana network fee
+            put("XRP", 0.0001);  // XRP network fee
+            put("USDT", 5.0);    // USDT-ERC20 gas cost in USDT
+            put("USDC", 5.0);    // USDC-ERC20 gas cost in USDC
+        }};
+        
+        String normalizedAsset = asset.toUpperCase();
+        return networkFees.getOrDefault(normalizedAsset, 0.001); // Default 0.1% for unknown assets
+    }
 } 

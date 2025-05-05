@@ -1,0 +1,395 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/opportunity_card"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="12dp"
+    android:layout_marginVertical="8dp"
+    app:cardBackgroundColor="#171924"
+    app:cardCornerRadius="18dp"
+    app:cardElevation="4dp"
+    app:strokeWidth="1dp"
+    app:strokeColor="#252836">
+
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="0dp">
+
+        <!-- Trading pair section with glassmorphism effect -->
+        <View
+            android:id="@+id/header_bg"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:background="@drawable/card_header_gradient"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintHeight_min="70dp"
+            app:layout_constraintBottom_toBottomOf="@id/pair_info"/>
+
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/pair_info"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="14dp"
+            app:layout_constraintTop_toTopOf="parent">
+            
+            <TextView
+                android:id="@+id/trading_pair_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Trading Pair"
+                android:textColor="#8B93B0"
+                android:textSize="12sp"
+                android:letterSpacing="0.05"
+                android:fontFamily="sans-serif-medium"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"/>
+
+            <TextView
+                android:id="@+id/pair_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="26sp"
+                android:textColor="#FFFFFF"
+                android:textStyle="bold"
+                android:fontFamily="sans-serif-medium"
+                android:layout_marginTop="2dp"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@id/trading_pair_label"
+                tools:text="BTC/USDT" />
+
+            <!-- Modern profit badge -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/profit_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
+                app:cardBackgroundColor="#294138"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent">
+
+                <TextView
+                    android:id="@+id/profit_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    android:fontFamily="sans-serif-medium"
+                    android:paddingHorizontal="16dp"
+                    android:paddingVertical="8dp"
+                    android:textColor="#4ADE80"
+                    tools:text="△ 1.23%" />
+            </com.google.android.material.card.MaterialCardView>
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+        <!-- Exchange Info Section -->
+        <LinearLayout
+            android:id="@+id/exchanges_section"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="8dp"
+            app:layout_constraintTop_toBottomOf="@id/pair_info">
+
+            <ImageView
+                android:id="@+id/exchanges_icon"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:src="@android:drawable/ic_menu_share"
+                app:tint="#8B93B0" />
+
+            <TextView
+                android:id="@+id/exchanges_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                android:fontFamily="sans-serif-medium"
+                tools:text="Binance → Coinbase" />
+        </LinearLayout>
+
+        <!-- Risk Section -->
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/risk_section"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="8dp"
+            app:layout_constraintTop_toBottomOf="@id/exchanges_section">
+
+            <TextView
+                android:id="@+id/risk_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Risk Level:"
+                android:textColor="#8B93B0"
+                android:textSize="14sp"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent"/>
+
+            <TextView
+                android:id="@+id/risk_level_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:textColor="#4ADE80"
+                android:textSize="16sp"
+                android:fontFamily="sans-serif-medium"
+                app:layout_constraintStart_toEndOf="@id/risk_label"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent"
+                tools:text="Low Risk" />
+
+            <TextView
+                android:id="@+id/risk_score_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Score:"
+                android:textColor="#8B93B0"
+                android:textSize="14sp"
+                android:layout_marginStart="16dp"
+                app:layout_constraintStart_toEndOf="@id/risk_level_text"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent"/>
+
+            <TextView
+                android:id="@+id/risk_score_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:textColor="#FFFFFF"
+                android:textSize="16sp"
+                app:layout_constraintStart_toEndOf="@id/risk_score_label"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_constraintBottom_toBottomOf="parent"
+                tools:text="0.78" />
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+        <!-- Execution Details -->
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/execution_section"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="8dp"
+            app:layout_constraintTop_toBottomOf="@id/risk_section">
+
+            <TextView
+                android:id="@+id/execution_time_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Est. Time:"
+                android:textColor="#8B93B0"
+                android:textSize="14sp"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"/>
+
+            <TextView
+                android:id="@+id/execution_time_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                app:layout_constraintStart_toEndOf="@id/execution_time_label"
+                app:layout_constraintTop_toTopOf="parent"
+                tools:text="2.5 min" />
+
+            <TextView
+                android:id="@+id/slippage_label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Slippage:"
+                android:textColor="#8B93B0"
+                android:textSize="14sp"
+                android:layout_marginStart="24dp"
+                app:layout_constraintStart_toEndOf="@id/execution_time_text"
+                app:layout_constraintTop_toTopOf="parent"/>
+
+            <TextView
+                android:id="@+id/slippage_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                app:layout_constraintStart_toEndOf="@id/slippage_label"
+                app:layout_constraintTop_toTopOf="parent"
+                tools:text="0.12%" />
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+        <!-- Divider -->
+        <View
+            android:id="@+id/divider"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginVertical="8dp"
+            android:background="#252836"
+            app:layout_constraintTop_toBottomOf="@id/execution_section"/>
+
+        <!-- Price Comparison Section -->
+        <LinearLayout
+            android:id="@+id/price_section"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="12dp"
+            app:layout_constraintTop_toBottomOf="@id/divider">
+
+            <!-- Buy Side -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Buy"
+                    android:textColor="#8B93B0"
+                    android:textSize="14sp"/>
+
+                <TextView
+                    android:id="@+id/buy_price_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="16sp"
+                    android:textColor="#FFFFFF"
+                    android:fontFamily="sans-serif-medium"
+                    android:layout_marginTop="4dp"
+                    tools:text="$36,400.50" />
+
+                <TextView
+                    android:id="@+id/buy_fee_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="12sp"
+                    android:textColor="#A47CEF"
+                    android:layout_marginTop="4dp"
+                    tools:text="Fee: 0.1%" />
+
+                <TextView
+                    android:id="@+id/buy_volume_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="12sp"
+                    android:textColor="#8B93B0"
+                    android:layout_marginTop="4dp"
+                    tools:text="Vol: $24.5M" />
+            </LinearLayout>
+
+            <!-- Arrow -->
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_gravity="center"
+                android:src="@android:drawable/ic_media_play"
+                app:tint="#3B82F6" />
+
+            <!-- Sell Side -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Sell"
+                    android:textColor="#8B93B0"
+                    android:textSize="14sp"/>
+
+                <TextView
+                    android:id="@+id/sell_price_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="16sp"
+                    android:textColor="#FFFFFF"
+                    android:fontFamily="sans-serif-medium"
+                    android:layout_marginTop="4dp"
+                    tools:text="$36,850.25" />
+
+                <TextView
+                    android:id="@+id/sell_fee_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="12sp"
+                    android:textColor="#A47CEF"
+                    android:layout_marginTop="4dp"
+                    tools:text="Fee: 0.2%" />
+
+                <TextView
+                    android:id="@+id/sell_volume_text"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textSize="12sp"
+                    android:textColor="#8B93B0"
+                    android:layout_marginTop="4dp"
+                    tools:text="Vol: $32.1M" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Net Profit section -->
+        <LinearLayout
+            android:id="@+id/net_profit_section"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:background="#202331"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="12dp"
+            app:layout_constraintTop_toBottomOf="@id/price_section"
+            app:layout_constraintBottom_toBottomOf="parent">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Net Profit:"
+                android:textColor="#8B93B0"
+                android:textSize="14sp"/>
+
+            <TextView
+                android:id="@+id/net_profit_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="16sp"
+                android:textColor="#4ADE80"
+                android:textStyle="bold"
+                android:fontFamily="sans-serif-medium"
+                android:layout_marginStart="8dp"
+                tools:text="0.98%" />
+
+            <Space
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/details_button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Details"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp"
+                app:cornerRadius="8dp"
+                android:minHeight="36dp"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="8dp"
+                app:backgroundTint="#3B82F6"
+                android:layout_gravity="center_vertical"/>
+        </LinearLayout>
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</com.google.android.material.card.MaterialCardView> 

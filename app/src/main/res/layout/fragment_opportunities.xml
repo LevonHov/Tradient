@@ -187,21 +187,6 @@
         </com.google.android.material.chip.ChipGroup>
     </HorizontalScrollView>
 
-    <!-- Risk level summary text -->
-    <TextView
-        android:id="@+id/risk_summary_text"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:textSize="14sp"
-        android:textColor="@color/secondary_text"
-        android:visibility="gone"
-        app:layout_constraintTop_toBottomOf="@id/filterChipsScrollView"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        tools:text="Risk Summary: 5 Low, 10 Medium, 3 High"
-        tools:visibility="visible" />
-
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/opportunities_recycler_view"
         android:layout_width="0dp"
@@ -212,7 +197,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/risk_summary_text"
+        app:layout_constraintTop_toBottomOf="@id/filterChipsScrollView"
         tools:listitem="@layout/item_opportunity" />
 
     <TextView
@@ -226,7 +211,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/risk_summary_text"
+        app:layout_constraintTop_toBottomOf="@id/filterChipsScrollView"
         app:layout_constraintVertical_bias="0.3"
         tools:text="@string/scanning_for_opportunities"
         tools:visibility="visible" />

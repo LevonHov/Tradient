@@ -23,7 +23,7 @@ Tradient is an advanced cryptocurrency arbitrage trading platform that identifie
 ### Exchange Integration Framework
 - Standardized API adapter interface for consistent exchange access
 - Real-time data collection via REST APIs and WebSockets
-- Currently supports major exchanges including Binance, Coinbase, Kraken, OKX, and more
+- Currently supports major exchanges including Binance, Coinbase, Kraken, OKX, and ByBit
 - Optimized network handling with proper timeouts and error recovery
 
 ### User-Friendly Interface

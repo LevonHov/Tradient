@@ -16,6 +16,7 @@ import com.example.tradient.domain.risk.SlippageManagerService;
 import com.example.tradient.repository.ExchangeRepository;
 import com.example.tradient.data.model.RiskAssessment;
 import com.example.tradient.domain.risk.RiskCalculator;
+import com.example.tradient.util.ArbitrageProcessing;
 import com.example.tradient.util.RiskAssessmentAdapter;
 
 import java.util.ArrayList;
@@ -458,17 +459,52 @@ public class ArbitrageViewModel extends ViewModel {
                     }
                 }
                 
-                // Calculate price difference
-                double priceDiff = Math.abs(currentTicker.getLastPrice() - otherTicker.getLastPrice());
-                double priceDiffPercent = (priceDiff / Math.min(currentTicker.getLastPrice(), otherTicker.getLastPrice())) * 100;
+                // Determine buy/sell direction - buy on the exchange with lower price, sell on higher price
+                boolean isBuyOnCurrent = currentTicker.getLastPrice() < otherTicker.getLastPrice();
+                ExchangeService buyExchange = isBuyOnCurrent ? currentExchange : otherExchange;
+                ExchangeService sellExchange = isBuyOnCurrent ? otherExchange : currentExchange;
+                
+                // Get prices
+                double buyPrice = isBuyOnCurrent ? currentTicker.getLastPrice() : otherTicker.getLastPrice();
+                double sellPrice = isBuyOnCurrent ? otherTicker.getLastPrice() : currentTicker.getLastPrice();
+                
+                // Skip if prices are invalid
+                if (buyPrice <= 0 || sellPrice <= 0) {
+                    Log.w(TAG, "Invalid prices for " + normalizedSymbol + ": buy=" + buyPrice + ", sell=" + sellPrice);
+                    continue;
+                }
+                
+                // Get trading pair base asset (e.g., "BTC" from "BTC/USDT")
+                String baseAsset = normalizedSymbol.split("/")[0];
+                
+                // Calculate profit with comprehensive fee model
+                double buyFee = exchangeConfig.getFeePercentage(buyExchange.getExchangeName(), true); // Maker fee for buy
+                double sellFee = exchangeConfig.getFeePercentage(sellExchange.getExchangeName(), false); // Taker fee for sell
+                
+                // Default trade amount for calculation (this would be calculated based on available balance in real trading)
+                double initialAmount = 1000.0; // 1000 USD or equivalent in quote currency
+                
+                // Use comprehensive profit calculation that accounts for all fees
+                double profitPercent = 
+                        ArbitrageProcessing.calculateComprehensiveProfitPercentage(
+                    initialAmount,
+                    buyPrice,
+                    sellPrice,
+                    buyExchange.getExchangeName(),
+                    sellExchange.getExchangeName(),
+                    baseAsset,
+                    buyFee,
+                    sellFee
+                );
+                
+                // Log the calculation for debugging
+                Log.d(TAG, String.format(
+                    "Comprehensive profit calculation for %s: buy=%f on %s, sell=%f on %s, profit=%.2f%% (includes all fees)",
+                    normalizedSymbol, buyPrice, buyExchange.getExchangeName(), 
+                    sellPrice, sellExchange.getExchangeName(), profitPercent));
                 
                 // Check if price difference exceeds minimum profit threshold
-                if (priceDiffPercent >= minProfitPercent) {
-                    // Determine buy/sell direction
-                    boolean isBuyOnCurrent = currentTicker.getLastPrice() < otherTicker.getLastPrice();
-                    ExchangeService buyExchange = isBuyOnCurrent ? currentExchange : otherExchange;
-                    ExchangeService sellExchange = isBuyOnCurrent ? otherExchange : currentExchange;
-                    
+                if (profitPercent >= minProfitPercent) {
                     // Get tickers for risk assessment
                     Ticker buyTicker = isBuyOnCurrent ? currentTicker : otherTicker;
                     Ticker sellTicker = isBuyOnCurrent ? otherTicker : currentTicker;
@@ -480,9 +516,9 @@ public class ArbitrageViewModel extends ViewModel {
                         exchangeSymbolMap.get(sellExchange).get(normalizedSymbol),
                         buyExchange.getExchangeName(),
                         sellExchange.getExchangeName(),
-                        isBuyOnCurrent ? currentTicker.getLastPrice() : otherTicker.getLastPrice(),
-                        isBuyOnCurrent ? otherTicker.getLastPrice() : currentTicker.getLastPrice(),
-                        priceDiffPercent
+                        buyPrice,
+                        sellPrice,
+                        profitPercent  // Pass the comprehensive profit percentage
                     );
                     
                     // Set ticker data
@@ -490,19 +526,17 @@ public class ArbitrageViewModel extends ViewModel {
                     opportunity.setSellTicker(sellTicker);
                     
                     // Store fee percentages for later calculation
-                    double buyFee = exchangeConfig.getFeePercentage(buyExchange.getExchangeName(), true); // Maker fee for buy
-                    double sellFee = exchangeConfig.getFeePercentage(sellExchange.getExchangeName(), false); // Taker fee for sell
                     opportunity.setBuyFeePercentage(buyFee);
                     opportunity.setSellFeePercentage(sellFee);
                     
                     // Set empty risk assessment
                     RiskAssessmentAdapter.setRiskAssessment(opportunity, new RiskAssessment());
                     
-                    // Set viability to false until profit calculation is reimplemented
-                    opportunity.setViable(false);
+                    // Set net profit after all fees (already calculated by comprehensive method)
+                    opportunity.setNetProfitPercentage(profitPercent);
                     
-                    // Create a unique key for this opportunity
-                    String opportunityKey = opportunity.getOpportunityKey();
+                    // Set viability based on net profit
+                    opportunity.setViable(profitPercent > minProfitPercent);
                     
                     // Get current opportunities
                     List<ArbitrageOpportunity> currentOpportunities = arbitrageOpportunities.getValue();
@@ -516,7 +550,7 @@ public class ArbitrageViewModel extends ViewModel {
                     
                     for (int i = 0; i < currentOpportunities.size(); i++) {
                         ArbitrageOpportunity existingOpp = currentOpportunities.get(i);
-                        if (existingOpp.getOpportunityKey().equals(opportunityKey)) {
+                        if (existingOpp.getOpportunityKey().equals(opportunity.getOpportunityKey())) {
                             opportunityExists = true;
                             existingIndex = i;
                             break;
@@ -538,15 +572,13 @@ public class ArbitrageViewModel extends ViewModel {
                     arbitrageOpportunities.postValue(currentOpportunities);
                     
                     // Log opportunity
-                    Log.i(TAG, String.format("Found arbitrage opportunity: %s - Buy on %s at %.8f, Sell on %s at %.8f, Profit: %.2f%%, Risk: %.2f, Slippage: %.4f%%",
+                    Log.i(TAG, String.format("Found arbitrage opportunity: %s - Buy on %s at %.8f, Sell on %s at %.8f, Comprehensive Profit: %.2f%%",
                         normalizedSymbol,
                         buyExchange.getExchangeName(),
                         opportunity.getBuyPrice(),
                         sellExchange.getExchangeName(),
                         opportunity.getSellPrice(),
-                        priceDiffPercent,
-                        0.0, // Placeholder for risk
-                        0.0 // Placeholder for slippage
+                        profitPercent
                     ));
                 }
             }
@@ -727,5 +759,57 @@ public class ArbitrageViewModel extends ViewModel {
     // This will be moved to a separate file in a future refactoring
     private static class SymbolPrioritizationManager {
         // Implementation will go here
+    }
+
+    /**
+     * Fix incorrectly calculated profit percentages
+     * This verifies and corrects potential errors in profit calculation
+     * @param buyPrice The buy price
+     * @param sellPrice The sell price
+     * @param reportedProfit The profit percentage reported by the system
+     * @return Corrected profit percentage
+     */
+    private double validateProfitPercentage(double buyPrice, double sellPrice, double reportedProfit) {
+        // Calculate the expected profit percentage based on raw price difference
+        // Profit % should be ((sellPrice - buyPrice) / buyPrice) * 100
+        double expectedProfit = ((sellPrice - buyPrice) / buyPrice) * 100;
+        
+        // If the reported profit is dramatically different (more than 3x), use the calculated value
+        if (Math.abs(reportedProfit) > Math.abs(expectedProfit) * 3) {
+            Log.e(TAG, "Detected incorrect profit: reported=" + reportedProfit + 
+                  "%, calculated=" + expectedProfit + "% (buy: " + buyPrice + 
+                  ", sell: " + sellPrice + ")");
+            return expectedProfit;
+        }
+        
+        return reportedProfit;
+    }
+
+    /**
+     * Create an arbitrage opportunity with validated profit values
+     */
+    private ArbitrageOpportunity createOpportunity(
+            String normalizedSymbol,
+            String buyExchangeSymbol,
+            String sellExchangeSymbol,
+            String buyExchangeName,
+            String sellExchangeName,
+            double buyPrice,
+            double sellPrice,
+            double reportedProfitPercent) {
+        
+        // Validate and correct the profit percentage if necessary
+        double correctedProfitPercent = validateProfitPercentage(buyPrice, sellPrice, reportedProfitPercent);
+        
+        return new ArbitrageOpportunity(
+            normalizedSymbol,
+            buyExchangeSymbol,
+            sellExchangeSymbol,
+            buyExchangeName,
+            sellExchangeName,
+            buyPrice,
+            sellPrice,
+            correctedProfitPercent
+        );
     }
 } 

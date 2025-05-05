@@ -62,6 +62,9 @@ public class ArbitrageOpportunity implements Parcelable {
     private double priceVolatility;
     private double totalSlippagePercentage;
 
+    // Add a direct reference to RiskAssessment
+    private RiskAssessment riskAssessment;
+
     public ArbitrageOpportunity() {
         this.timestamp = new Date();
         this.executed = false;
@@ -244,8 +247,77 @@ public class ArbitrageOpportunity implements Parcelable {
         return sellPrice;
     }
 
+    /**
+     * Sets the profit percentage and validates it against buy and sell prices.
+     * The profit percentage is stored as a percentage value (e.g., 42.15 for 42.15%).
+     * 
+     * @param profitPercent The profit percentage to set
+     */
+    public void setProfitPercent(double profitPercent) {
+        // Store the original value for logging
+        double originalValue = profitPercent;
+        
+        // Calculate expected profit based on prices
+        if (buyPrice > 0 && sellPrice > 0) {
+            double expectedProfit = ((sellPrice - buyPrice) / buyPrice) * 100;
+            
+            // Check if there's a significant discrepancy (more than 1 percentage point)
+            if (Math.abs(profitPercent - expectedProfit) > 1.0) {
+                Log.w("ArbitrageOpportunity", String.format(
+                    "Profit percentage discrepancy detected for %s: provided=%.2f%%, calculated=%.2f%%, using calculated value",
+                    normalizedSymbol, profitPercent, expectedProfit));
+                
+                // Use the calculated value instead
+                this.profitPercent = expectedProfit;
+            } else {
+                // Use the provided value
+                this.profitPercent = profitPercent;
+            }
+        } else {
+            // If prices aren't available, just store the value
+            this.profitPercent = profitPercent;
+        }
+        
+        // Log if we made a correction
+        if (this.profitPercent != originalValue) {
+            Log.d("ArbitrageOpportunity", String.format(
+                "Corrected profit for %s: from %.2f%% to %.2f%%",
+                normalizedSymbol, originalValue, this.profitPercent));
+        }
+    }
+
+    /**
+     * Gets the profit percentage.
+     * The value is stored as a percentage (e.g., 42.15 for 42.15%).
+     * 
+     * @return The profit percentage
+     */
     public double getProfitPercent() {
+        // Validate the stored profit percentage against prices
+        if (buyPrice > 0 && sellPrice > 0) {
+            double expectedProfit = ((sellPrice - buyPrice) / buyPrice) * 100;
+            
+            // If significant discrepancy, recalculate and log
+            if (Math.abs(profitPercent - expectedProfit) > 1.0) {
+                Log.w("ArbitrageOpportunity", String.format(
+                    "Invalid profit detected in getProfitPercent for %s: stored=%.2f%%, calculated=%.2f%%, using calculated",
+                    normalizedSymbol, profitPercent, expectedProfit));
+                
+                // Update the stored value
+                profitPercent = expectedProfit;
+            }
+        }
+        
         return profitPercent;
+    }
+    
+    /**
+     * Gets the profit percentage formatted as a string with 2 decimal places.
+     * 
+     * @return The formatted profit percentage string (e.g., "42.15%")
+     */
+    public String getFormattedProfitPercent() {
+        return String.format("%.2f%%", getProfitPercent());
     }
 
     /**
@@ -313,12 +385,32 @@ public class ArbitrageOpportunity implements Parcelable {
     }
 
     /**
-     * Get the net profit percentage after accounting for all fees.
+     * Sets the net profit percentage after fees.
+     * The net profit is stored as a percentage value (e.g., 41.5 for 41.5%).
+     * 
+     * @param netProfitPercentage The net profit percentage to set
+     */
+    public void setNetProfitPercentage(double netProfitPercentage) {
+        this.netProfitPercentage = netProfitPercentage;
+    }
+
+    /**
+     * Gets the net profit percentage after fees.
+     * The value is stored as a percentage (e.g., 41.5 for 41.5%).
      *
      * @return The net profit percentage
      */
     public double getNetProfitPercentage() {
         return netProfitPercentage;
+    }
+    
+    /**
+     * Gets the net profit percentage as a formatted string with 2 decimal places.
+     * 
+     * @return The formatted net profit percentage string (e.g., "42.15%")
+     */
+    public String getFormattedNetProfitPercentage() {
+        return String.format("%.2f%%", getNetProfitPercentage());
     }
 
     /**
@@ -543,10 +635,6 @@ public class ArbitrageOpportunity implements Parcelable {
         this.sellFeePercentage = sellFeePercentage;
     }
 
-    public void setNetProfitPercentage(double netProfitPercentage) {
-        this.netProfitPercentage = netProfitPercentage;
-    }
-
     public void setViable(boolean viable) {
         this.isViable = viable;
     }
@@ -724,6 +812,7 @@ public class ArbitrageOpportunity implements Parcelable {
         orderBookDepth = in.readDouble();
         priceVolatility = in.readDouble();
         totalSlippagePercentage = in.readDouble();
+        riskAssessment = in.readParcelable(RiskAssessment.class.getClassLoader());
     }
 
     @Override
@@ -767,6 +856,7 @@ public class ArbitrageOpportunity implements Parcelable {
         dest.writeDouble(orderBookDepth);
         dest.writeDouble(priceVolatility);
         dest.writeDouble(totalSlippagePercentage);
+        dest.writeParcelable(riskAssessment, flags);
     }
 
     @Override
@@ -863,9 +953,102 @@ public class ArbitrageOpportunity implements Parcelable {
     }
 
     /**
-     * Calculates and updates the risk assessment for this opportunity.
-     * This method should be called whenever the opportunity data changes.
+     * Get the risk assessment for this opportunity
+     * @return The risk assessment object, or null if not available
      */
+    public RiskAssessment getRiskAssessment() {
+        return riskAssessment;
+    }
+    
+    /**
+     * Set the risk assessment for this opportunity
+     * @param riskAssessment The risk assessment to set
+     */
+    public void setRiskAssessment(RiskAssessment riskAssessment) {
+        this.riskAssessment = riskAssessment;
+        // Update legacy fields for backward compatibility
+        if (riskAssessment != null) {
+            this.riskScore = riskAssessment.getOverallRiskScore();
+            this.liquidity = riskAssessment.getLiquidityScore();
+            this.volatility = riskAssessment.getVolatilityScore();
+        }
+    }
 
-
+    /**
+     * Recalculate the profit percentage using the comprehensive fee model.
+     * This ensures all types of fees are properly accounted for: trading fees,
+     * withdrawal fees, network fees, and any deposit fees.
+     * 
+     * @param initialAmount The initial amount in base currency to use for calculation
+     * @return The updated profit percentage after recalculation
+     */
+    public double recalculateComprehensiveProfit(double initialAmount) {
+        if (buyPrice <= 0 || sellPrice <= 0) {
+            Log.w("ArbitrageOpportunity", "Cannot recalculate profit with invalid prices");
+            return profitPercent;
+        }
+        
+        // Extract base asset from normalized symbol
+        String baseAsset = "";
+        if (normalizedSymbol != null && normalizedSymbol.contains("/")) {
+            baseAsset = normalizedSymbol.split("/")[0];
+        } else if (pair != null) {
+            baseAsset = pair.getBaseAsset();
+        }
+        
+        if (baseAsset.isEmpty()) {
+            Log.w("ArbitrageOpportunity", "Cannot determine base asset for comprehensive profit calculation");
+            return profitPercent;
+        }
+        
+        // Use the ArbitrageProcessing utility for consistent calculation
+        try {
+            double recalculatedProfit = com.example.tradient.util.ArbitrageProcessing.calculateComprehensiveProfitPercentage(
+                initialAmount,
+                buyPrice,
+                sellPrice,
+                exchangeBuy,
+                exchangeSell,
+                baseAsset,
+                buyFeePercentage,
+                sellFeePercentage
+            );
+            
+            // Update the profit percentages
+            this.profitPercent = recalculatedProfit;
+            this.netProfitPercentage = recalculatedProfit; // Net profit is already included in comprehensive calculation
+            
+            Log.d("ArbitrageOpportunity", String.format(
+                "Recalculated comprehensive profit for %s: %.4f%% (includes all fees)",
+                normalizedSymbol, recalculatedProfit));
+                
+            return recalculatedProfit;
+        } catch (Exception e) {
+            Log.e("ArbitrageOpportunity", "Error recalculating comprehensive profit: " + e.getMessage(), e);
+            return profitPercent;
+        }
+    }
+    
+    /**
+     * Validates the stored profit percentage against a comprehensive profit calculation
+     * that includes all types of fees.
+     * 
+     * @param initialAmount The initial amount to use for calculation
+     * @return True if the stored profit is accurate, false if it was corrected
+     */
+    public boolean validateComprehensiveProfit(double initialAmount) {
+        double originalProfit = this.profitPercent;
+        double recalculatedProfit = recalculateComprehensiveProfit(initialAmount);
+        
+        // Check if there's a significant discrepancy (more than 0.5 percentage point)
+        boolean isAccurate = Math.abs(originalProfit - recalculatedProfit) < 0.5;
+        
+        if (!isAccurate) {
+            Log.w("ArbitrageOpportunity", String.format(
+                "Profit percentage discrepancy detected for %s: original=%.2f%%, comprehensive=%.2f%%",
+                normalizedSymbol, originalProfit, recalculatedProfit));
+        }
+        
+        return isAccurate;
+    }
 }

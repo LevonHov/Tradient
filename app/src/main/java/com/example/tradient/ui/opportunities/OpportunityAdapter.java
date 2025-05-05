@@ -19,6 +19,7 @@ import androidx.core.content.ContextCompat;
 
 import com.example.tradient.R;
 import com.example.tradient.config.ConfigurationFactory;
+import com.example.tradient.data.model.ArbitrageCardModel;
 import com.example.tradient.data.model.ArbitrageOpportunity;
 import com.example.tradient.data.model.RiskAssessment;
 import com.example.tradient.data.model.Ticker;
@@ -32,24 +33,33 @@ import com.example.tradient.domain.risk.AssetRiskCalculator;
 import com.example.tradient.data.model.OrderBook;
 import com.example.tradient.util.AssetLogoMap;
 import com.example.tradient.util.RiskAssessmentAdapter;
+import com.example.tradient.ui.opportunities.RiskUtils;
 
+import java.text.DecimalFormat;
 import java.text.NumberFormat;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 import com.google.android.material.card.MaterialCardView;
+import androidx.cardview.widget.CardView;
+import com.google.android.material.button.MaterialButton;
 
-public class OpportunityAdapter extends RecyclerView.Adapter<OpportunityAdapter.OpportunityViewHolder> {
+public class OpportunityAdapter extends RecyclerView.Adapter<OpportunityAdapter.ViewHolder> {
 
     private static final String TAG = "OpportunityAdapter";
-    private List<ArbitrageOpportunity> opportunities;
+    private final List<ArbitrageCardModel> opportunities = new ArrayList<>();
+    private final List<ArbitrageOpportunity> originalOpportunities = new ArrayList<>();
+    private final Context context;
+    private static final DecimalFormat df = new DecimalFormat("0.00");
     private final NumberFormat currencyFormatter;
     private final NumberFormat percentFormatter;
     private final SlippageManagerService slippageManager;
     private final RiskCalculator riskCalculator;
     private final AssetRiskCalculator assetRiskCalculator;
-    private Context context;
     
     // Configuration values from ArbitrageProcessMain
     private final double minProfitPercent;
@@ -74,8 +84,8 @@ public class OpportunityAdapter extends RecyclerView.Adapter<OpportunityAdapter.
     private static final int COLOR_RISK_EXTREME = Color.parseColor("#B71C1C");      // Dark Red
     private static final int COLOR_RISK_UNKNOWN = Color.parseColor("#9E9E9E");      // Grey
 
-    public OpportunityAdapter(List<ArbitrageOpportunity> opportunities) {
-        this.opportunities = opportunities;
+    public OpportunityAdapter(Context context) {
+        this.context = context;
         
         // Initialize formatters
         currencyFormatter = NumberFormat.getCurrencyInstance(Locale.US);
@@ -99,143 +109,112 @@ public class OpportunityAdapter extends RecyclerView.Adapter<OpportunityAdapter.
 
     @NonNull
     @Override
-    public OpportunityViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        context = parent.getContext();
-        View view = LayoutInflater.from(context)
+    public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        View view = LayoutInflater.from(parent.getContext())
                 .inflate(R.layout.item_opportunity, parent, false);
-        return new OpportunityViewHolder(view);
+        return new ViewHolder(view);
     }
 
     @Override
-    public void onBindViewHolder(@NonNull OpportunityViewHolder holder, int position) {
-        ArbitrageOpportunity opportunity = opportunities.get(position);
+    public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
+        ArbitrageCardModel opportunity = opportunities.get(position);
         
-        // Set item click listener to open detail screen
-        holder.itemView.setOnClickListener(v -> {
-            Context context = v.getContext();
-            Intent intent = new Intent(context, OpportunityDetailActivity.class);
-            intent.putExtra("opportunity", opportunity);
-            context.startActivity(intent);
-        });
+        // Set the trading pair
+        holder.symbolText.setText(opportunity.getDisplaySymbol());
         
-        // Set symbol and profit
-        holder.symbolText.setText(opportunity.getNormalizedSymbol());
+        // Set the profit percentage
+        double profitPercent = opportunity.getProfitPercent();
+        holder.profitText.setText("△ " + String.format(Locale.US, "%.2f%%", profitPercent));
         
-        // Get profit percentage directly from opportunity
-        double profitPercentage = opportunity.getProfitPercent();
-        
-        // Format and display profit with angle bracket indicator
-        String profitDisplay;
-        int profitColor;
-        int profitBadgeBackground;
-        
-        if (profitPercentage > 1.0) {
-            profitDisplay = String.format("▲ %.2f%%", profitPercentage);
-            profitColor = COLOR_PROFIT_GREEN;
-            profitBadgeBackground = R.drawable.profit_badge_background;
-        } else if (profitPercentage > 0.1) {
-            profitDisplay = String.format("△ %.2f%%", profitPercentage);
-            profitColor = COLOR_PROFIT_GREEN;
-            profitBadgeBackground = R.drawable.profit_badge_background;
-        } else if (profitPercentage > 0) {
-            profitDisplay = String.format("△ %.2f%%", profitPercentage);
-            profitColor = COLOR_PROFIT_YELLOW;
-            profitBadgeBackground = R.drawable.neutral_badge_background;
+        // Set profit text color based on profit percentage
+        if (profitPercent >= 0.01) {
+            holder.profitText.setTextColor(COLOR_PROFIT_GREEN);
+        } else if (profitPercent >= 0.005) {
+            holder.profitText.setTextColor(COLOR_PROFIT_YELLOW);
         } else {
-            profitDisplay = String.format("▽ %.2f%%", profitPercentage);
-            profitColor = COLOR_PROFIT_RED;
-            profitBadgeBackground = R.drawable.loss_badge_background;
+            holder.profitText.setTextColor(COLOR_PROFIT_RED);
         }
         
-        // Set profit text and color
-        holder.profitText.setText(profitDisplay);
-        holder.profitText.setTextColor(profitColor);
-        
-        // Set the profit badge background
-        MaterialCardView profitBadge = holder.itemView.findViewById(R.id.profit_badge);
-        profitBadge.setBackground(ContextCompat.getDrawable(holder.itemView.getContext(), profitBadgeBackground));
-        
-        // Display basic information
-        Log.d("OpportunityAdapter", "Arbitrage Opportunity - Symbol: " + opportunity.getNormalizedSymbol());
-        Log.d("OpportunityAdapter", "Buy Price: " + opportunity.getBuyPrice() + ", Sell Price: " + opportunity.getSellPrice());
-        Log.d("OpportunityAdapter", "Buy Fee: " + (opportunity.getBuyFeePercentage() * 100) + "%, Sell Fee: " + (opportunity.getSellFeePercentage() * 100) + "%");
-        Log.d("OpportunityAdapter", "Profit: " + profitPercentage + "%");
-        
-        // Set exchange info
-        holder.buyExchangeName.setText(opportunity.getExchangeBuy());
-        holder.sellExchangeName.setText(opportunity.getExchangeSell());
+        // Set exchange information
+        String buyExchange = opportunity.getBuyExchange();
+        String sellExchange = opportunity.getSellExchange();
+        holder.buyExchangeName.setText(buyExchange);
+        holder.sellExchangeName.setText(sellExchange);
         
         // Set exchange logos
-        setExchangeLogo(holder.buyExchangeLogo, opportunity.getExchangeBuy());
-        setExchangeLogo(holder.sellExchangeLogo, opportunity.getExchangeSell());
+        setExchangeLogo(holder.buyExchangeLogo, buyExchange);
+        setExchangeLogo(holder.sellExchangeLogo, sellExchange);
         
-        // Set prices
-        holder.buyPrice.setText(currencyFormatter.format(opportunity.getBuyPrice()));
-        holder.sellPrice.setText(currencyFormatter.format(opportunity.getSellPrice()));
+        // Set price information
+        holder.buyPrice.setText(opportunity.getFormattedBuyPrice());
+        holder.sellPrice.setText(opportunity.getFormattedSellPrice());
         
-        // Display fees (convert from decimal to percentage for display)
-        holder.buyFeeText.setText(String.format("%.2f%%", opportunity.getBuyFeePercentage() * 100));
-        holder.sellFeeText.setText(String.format("%.2f%%", opportunity.getSellFeePercentage() * 100));
+        // Set fee information
+        holder.buyFeeText.setText(String.format(Locale.US, "%.2f%%", opportunity.getBuyFee() * 100));
+        holder.sellFeeText.setText(String.format(Locale.US, "%.2f%%", opportunity.getSellFee() * 100));
         
-        // Get risk assessment from opportunity
-        RiskAssessment riskAssessment = RiskAssessmentAdapter.getRiskAssessment(opportunity);
+        // Set risk information
+        double riskScore = opportunity.getRiskScore();
+        int riskProgress = (int)(riskScore * 100);
+        holder.riskText.setText(getRiskLevelText(riskScore));
+        holder.riskIndicator.setBackgroundTintList(ColorStateList.valueOf(getRiskColor(riskScore)));
+        holder.riskText.setTextColor(getRiskColor(riskScore));
+        holder.riskProgress.setProgress(riskProgress);
         
-        // Display risk information
-        if (riskAssessment != null) {
-            // Get risk score from assessment
-            double riskScore = riskAssessment.getRiskScore();
+        // Get the original opportunity for advanced calculations
+        int originalIndex = findOriginalOpportunityIndex(opportunity.getOpportunityId());
+        ArbitrageOpportunity originalOpportunity = originalIndex >= 0 ? originalOpportunities.get(originalIndex) : null;
+        
+        // Calculate and set slippage information
+        double slippage = calculateSlippage(opportunity, originalOpportunity);
+        holder.slippageText.setText(String.format(Locale.US, "%.2f%%", slippage * 100));
+        
+        // Calculate and set execution time and ROI
+        double executionTimeMin = calculateExecutionTime(opportunity, originalOpportunity);
+        
+        if (executionTimeMin > 0) {
+            int timeMinutes = (int) executionTimeMin;
+            holder.timeText.setText(timeMinutes + "m");
             
-            // Set risk progress
-            int progress = (int) (riskScore * 100);
-            holder.riskProgress.setProgress(progress);
+            // Calculate ROI per hour
+            double hourlyROI = (profitPercent / timeMinutes) * 60;
+            String roiText = String.format(Locale.US, "%.2f%%/h", hourlyROI);
+            holder.roiEfficiencyText.setText(roiText);
             
-            // Get risk level text
-            String riskLevelText = getRiskLevelText(riskScore);
-            holder.riskText.setText(riskLevelText);
-            
-            // Set risk color based on risk score
-            int riskColor = getRiskColor(riskScore);
-            holder.riskText.setTextColor(riskColor);
-            
-            // Set progress color
-            holder.riskProgress.setProgressTintList(ColorStateList.valueOf(riskColor));
-            
-            // Set slippage text if available
-            double slippage = riskAssessment.getSlippageEstimate();
-            if (slippage > 0) {
-                holder.slippageText.setText(String.format("Slip: %.2f%%", slippage * 100));
+            if (hourlyROI >= 0.01) {
+                holder.roiEfficiencyText.setTextColor(COLOR_PROFIT_GREEN);
+            } else if (hourlyROI >= 0.005) {
+                holder.roiEfficiencyText.setTextColor(COLOR_PROFIT_YELLOW);
             } else {
-                holder.slippageText.setText("Slip: --");
-            }
-            
-            // Set estimated execution time if available
-            double timeEstimateMinutes = riskAssessment.getExecutionTimeEstimate();
-            if (timeEstimateMinutes > 0) {
-                if (timeEstimateMinutes < 1) {
-                    holder.timeText.setText(String.format("Time: %.0fs", timeEstimateMinutes * 60));
-                } else {
-                    holder.timeText.setText(String.format("Time: %.1fm", timeEstimateMinutes));
-                }
-            } else {
-                holder.timeText.setText("Time: --");
-            }
-            
-            // Set ROI efficiency if available
-            double roiEfficiency = riskAssessment.getRoiEfficiency();
-            if (roiEfficiency > 0) {
-                holder.roiEfficiencyText.setText(String.format("ROI/h: %.1f", roiEfficiency));
-            } else {
-                holder.roiEfficiencyText.setText("ROI/h: --");
+                holder.roiEfficiencyText.setTextColor(COLOR_PROFIT_RED);
             }
         } else {
-            // No risk assessment available, show default values
-            holder.riskProgress.setProgress(0);
-            holder.riskText.setText("UNKNOWN");
-            holder.riskText.setTextColor(COLOR_RISK_UNKNOWN);
-            holder.slippageText.setText("Slip: --");
-            holder.timeText.setText("Time: --");
-            holder.roiEfficiencyText.setText("ROI/h: --");
+            holder.timeText.setText("~");
+            holder.roiEfficiencyText.setText("");
         }
+        
+        // Set card click listener to open details
+        holder.cardView.setOnClickListener(v -> {
+            if (originalIndex >= 0) {
+                Intent intent = new Intent(context, OpportunityDetailActivity.class);
+                intent.putExtra("opportunity", originalOpportunities.get(originalIndex));
+                context.startActivity(intent);
+            } else {
+                Log.e(TAG, "Could not find original opportunity with ID: " + opportunity.getOpportunityId());
+            }
+        });
+    }
+    
+    /**
+     * Find the index of the original opportunity by ID
+     */
+    private int findOriginalOpportunityIndex(String opportunityId) {
+        for (int i = 0; i < originalOpportunities.size(); i++) {
+            if (originalOpportunities.get(i).getOpportunityKey().equals(opportunityId)) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     @Override
@@ -243,377 +222,386 @@ public class OpportunityAdapter extends RecyclerView.Adapter<OpportunityAdapter.
         return opportunities.size();
     }
 
+    /**
+     * Update the adapter with a new list of opportunities
+     */
     public void updateOpportunities(List<ArbitrageOpportunity> newOpportunities) {
-        this.opportunities = newOpportunities;
+        originalOpportunities.clear();
+        originalOpportunities.addAll(newOpportunities);
+        
+        // Convert ArbitrageOpportunity to ArbitrageCardModel with forced risk recalculation
+        opportunities.clear();
+        for (ArbitrageOpportunity opportunity : newOpportunities) {
+            Log.d(TAG, "Processing opportunity: " + opportunity.getNormalizedSymbol() + ", profit: " + opportunity.getProfitPercent());
+            ArbitrageCardModel cardModel = ArbitrageCardModel.fromOpportunity(opportunity, true);
+            if (cardModel != null) {
+                opportunities.add(cardModel);
+                Log.d(TAG, "Added card model with risk: " + cardModel.getRiskScore() + " (" + cardModel.getRiskLevel() + ")");
+            }
+        }
+        
+        // Sort by profit percentage (descending)
+        Collections.sort(opportunities, (o1, o2) -> 
+            Double.compare(o2.getProfitPercent(), o1.getProfitPercent()));
+        
         notifyDataSetChanged();
     }
     
     /**
-     * Calculate a comprehensive risk score from 0 (highest risk) to 100 (lowest risk)
-     * Using the advanced RiskCalculator with all factors considered
+     * Filter opportunities based on risk level
      */
-    private int calculateRiskScore(ArbitrageOpportunity opportunity) {
-        try {
-            if (opportunity == null) {
-                return 0; // Return highest risk if opportunity is null
-            }
-            
-            // Get the risk assessment using the adapter
-            RiskAssessment assessment = RiskAssessmentAdapter.getRiskAssessment(opportunity);
-            if (assessment == null) {
-                // Calculate risk assessment using RiskCalculator
-                RiskCalculator riskCalculator = new RiskCalculator();
-                assessment = riskCalculator.assessRisk(opportunity);
-                if (assessment == null) {
-                    return 0; // Return highest risk if assessment fails
+    public void filterByRiskLevel(String riskLevel) {
+        opportunities.clear();
+        
+        for (ArbitrageOpportunity opportunity : originalOpportunities) {
+            ArbitrageCardModel cardModel = ArbitrageCardModel.fromOpportunity(opportunity, true);
+            if (cardModel != null) {
+                if (riskLevel.equals("ALL") || cardModel.getRiskLevel().equals(riskLevel)) {
+                    opportunities.add(cardModel);
                 }
-                // Store the assessment in the opportunity using the adapter
-                RiskAssessmentAdapter.setRiskAssessment(opportunity, assessment);
             }
-            
-            // Get the risk score from the assessment (0-1 scale)
-            double riskScore = assessment.getOverallRiskScore();
-            
-            // Convert to percentage (0-100) for display
-            // Higher risk score means lower risk, so we keep it as is
-            int displayScore = (int) (riskScore * 100);
-            
-            // Log the risk score for debugging
-            Log.d("OpportunityAdapter", String.format("Risk score for %s: %.2f (display: %d)",
-                opportunity.getNormalizedSymbol(), riskScore, displayScore));
-            
-            return displayScore;
-        } catch (Exception e) {
-            Log.e("OpportunityAdapter", "Error calculating risk score: " + e.getMessage());
-            return 0; // Return highest risk on error
         }
+        
+        // Sort by profit percentage (descending)
+        Collections.sort(opportunities, (o1, o2) -> 
+            Double.compare(o2.getProfitPercent(), o1.getProfitPercent()));
+        
+        notifyDataSetChanged();
     }
 
-    private void bindRiskLevel(TextView riskLevelView, ArbitrageOpportunity opportunity) {
-        RiskAssessment riskAssessment = RiskAssessmentAdapter.getRiskAssessment(opportunity);
-        if (riskAssessment != null) {
-            double riskScore = riskAssessment.getOverallRiskScore();
-            String riskLevel = getRiskLevelText(riskScore);
-            int riskColor = getRiskColor(riskScore);
-            
-            riskLevelView.setText(riskLevel);
-            riskLevelView.setTextColor(riskColor);
-            
-            // Log the risk score for debugging
-            Log.d(TAG, "Risk Score for " + opportunity.getNormalizedSymbol() + 
-                  ": " + riskScore + " (" + riskLevel + ")");
+    /**
+     * Format volume to a readable string with K, M, B suffixes
+     */
+    private String formatVolume(double volume) {
+        if (volume < 1000) {
+            return String.format(Locale.US, "$%.0f", volume);
+        } else if (volume < 1000000) {
+            return String.format(Locale.US, "$%.1fK", volume / 1000);
+        } else if (volume < 1000000000) {
+            return String.format(Locale.US, "$%.1fM", volume / 1000000);
         } else {
-            riskLevelView.setText("Unknown Risk");
-            riskLevelView.setTextColor(COLOR_RISK_UNKNOWN);
+            return String.format(Locale.US, "$%.1fB", volume / 1000000000);
         }
     }
 
+    /**
+     * Get risk level text based on risk score
+     */
     private String getRiskLevelText(double riskScore) {
-        if (riskScore >= 0.8) return "Minimal Risk";
-        if (riskScore >= 0.7) return "Very Low Risk";
-        if (riskScore >= 0.6) return "Low Risk";
-        if (riskScore >= 0.5) return "Moderate Risk";
-        if (riskScore >= 0.4) return "Balanced Risk";
-        if (riskScore >= 0.3) return "Moderate High Risk";
-        if (riskScore >= 0.2) return "High Risk";
-        if (riskScore >= 0.1) return "Very High Risk";
-        return "Extreme Risk";
-    }
-
-    private int getRiskColor(double riskScore) {
-        if (riskScore >= 0.8) return COLOR_RISK_MINIMAL;
-        if (riskScore >= 0.7) return COLOR_RISK_VERY_LOW;
-        if (riskScore >= 0.6) return COLOR_RISK_LOW;
-        if (riskScore >= 0.5) return COLOR_RISK_MODERATE;
-        if (riskScore >= 0.4) return COLOR_RISK_BALANCED;
-        if (riskScore >= 0.3) return COLOR_RISK_MODERATE_HIGH;
-        if (riskScore >= 0.2) return COLOR_RISK_HIGH;
-        if (riskScore >= 0.1) return COLOR_RISK_VERY_HIGH;
-        return COLOR_RISK_EXTREME;
-    }
-    
-    private double calculateExecutionRisk(String buyExchange, String sellExchange) {
-        // Assign execution risk based on exchange reliability
-        if (buyExchange.equals("binance") && sellExchange.equals("binance")) return 0.2;
-        if (buyExchange.equals("coinbase") && sellExchange.equals("coinbase")) return 0.3;
-        if (buyExchange.equals("kraken") && sellExchange.equals("kraken")) return 0.4;
-        if (buyExchange.equals("bybit") && sellExchange.equals("bybit")) return 0.5;
-        return 0.7; // Higher risk for other exchanges
-    }
-    
-    /**
-     * Calculate the optimal position size for an arbitrage opportunity.
-     * This method has been removed and will be reimplemented.
-     * 
-     * @param opportunity The arbitrage opportunity
-     * @param availableCapital Total capital available
-     * @param maxPositionPct Maximum position size as percentage of capital
-     * @return Placeholder value, always returns 0.0
-     */
-    private double calculateOptimalPositionSize(ArbitrageOpportunity opportunity, 
-                                              double availableCapital, 
-                                              double maxPositionPct) {
-        // *** PROFIT CALCULATION REMOVED - TO BE REIMPLEMENTED ***
-            return 0.0;
-    }
-    
-    /**
-     * Calculates advanced slippage using the SlippageAnalyticsBuilder
-     * 
-     * @param opportunity The arbitrage opportunity
-     * @param tradeSize The size of the trade
-     * @return Total slippage as a decimal (e.g. 0.005 for 0.5%)
-     */
-    private double calculateAdvancedSlippage(ArbitrageOpportunity opportunity, double tradeSize) {
-        try {
-            String symbol = opportunity.getNormalizedSymbol();
-            
-            // Create a SlippageAnalyticsBuilder for advanced calculations
-            SlippageAnalyticsBuilder slippageAnalytics = new SlippageAnalyticsBuilder();
-            
-            // Calculate buy-side slippage
-            double buySlippage = slippageAnalytics.calculateSlippage(
-                opportunity.getBuyTicker(),
-                tradeSize,
-                true, // isBuy
-                symbol
-            );
-            
-            // Calculate sell-side slippage
-            double sellSlippage = slippageAnalytics.calculateSlippage(
-                opportunity.getSellTicker(),
-                tradeSize,
-                false, // isBuy (false for sell)
-                symbol
-            );
-            
-            // Log slippage details for debugging
-            Log.d(TAG, String.format("Slippage for %s: buy=%.4f%%, sell=%.4f%%, total=%.4f%%", 
-                    symbol, buySlippage*100, sellSlippage*100, (buySlippage+sellSlippage)*100));
-            
-            return buySlippage + sellSlippage;
-        } catch (Exception e) {
-            Log.e(TAG, "Error calculating advanced slippage: " + e.getMessage(), e);
-            // Fallback to basic calculation
-            return calculateBasicSlippage(opportunity.getBuyTicker(), true, tradeSize) + 
-                   calculateBasicSlippage(opportunity.getSellTicker(), false, tradeSize);
-        }
-    }
-
-    /**
-     * Fallback method for basic slippage calculation when advanced analytics are unavailable.
-     * From ArbitrageProcessMain.
-     */
-    private double calculateBasicSlippage(Ticker ticker, boolean isBuy, double tradeAmount) {
-        if (ticker == null) {
-            return 0.005; // Default 0.5% slippage if no market data
-        }
-
-        double spread = ticker.getAskPrice() - ticker.getBidPrice();
-        if (spread <= 0 || ticker.getLastPrice() <= 0) {
-            return 0.005; // Default to 0.5% if invalid prices
-        }
-
-        double relativeSpread = spread / ticker.getLastPrice();
-
-        // Basic volume-based adjustment (higher volume = lower slippage)
-        double volumeAdjustment = 1.0;
-        if (ticker.getVolume() > 0) {
-            // Normalize the trade amount relative to 24h volume
-            double volumeRatio = tradeAmount / ticker.getVolume();
-            volumeAdjustment = Math.min(1.0 + (volumeRatio * 10), 3.0); // Cap at 3x
-        }
-
-        // Calculate slippage based on spread and volume
-        double baseSlippage = relativeSpread * 0.5 * volumeAdjustment;
-
-        // Ensure slippage is within reasonable bounds (0.05% to 2%)
-        return Math.max(0.0005, Math.min(baseSlippage, 0.02));
-    }
-    
-    /**
-     * Calculate liquidity factor based on opportunity details
-     */
-    private double calculateLiquidityFactor(ArbitrageOpportunity opportunity) {
-        // Base factor on volume available for the opportunity
-        double buyDepth = opportunity.getBuyExchangeLiquidity();
-        double sellDepth = opportunity.getSellExchangeLiquidity();
-        
-        // Combine with trading pair liquidity factors
-        String baseAsset = opportunity.getNormalizedSymbol().split("/")[0];
-        double assetFactor = getAssetLiquidityFactor(baseAsset);
-        
-        // Calculate and normalize factor (0.1-1.0)
-        double rawFactor = (buyDepth + sellDepth) / 2.0 * assetFactor;
-        return Math.max(0.1, Math.min(1.0, rawFactor));
-    }
-
-    /**
-     * Get asset-specific liquidity factor
-     */
-    private double getAssetLiquidityFactor(String asset) {
-        String normalized = asset.toUpperCase();
-        
-        switch (normalized) {
-            case "BTC": return 1.0;
-            case "ETH": return 0.95;
-            case "SOL": return 0.9;
-            case "BNB": return 0.9;
-            case "XRP": return 0.85;
-            case "ADA": return 0.8;
-            case "USDT": return 1.0;
-            case "USDC": return 0.98;
-            default: return 0.75;
-        }
-    }
-
-    /**
-     * Estimate current market volatility (this would be updated periodically)
-     */
-    private TimeEstimationUtil.MarketVolatility estimateCurrentVolatility() {
-        // In a production app, this would use real-time market data
-        // For now, use a default medium volatility
-        return TimeEstimationUtil.MarketVolatility.MEDIUM;
-    }
-    
-    /**
-     * Set the appropriate exchange logo based on exchange name
-     */
-    private void setExchangeLogo(ImageView imageView, String exchangeName) {
-        // Use the AssetLogoMap utility to get the appropriate logo resource
-        imageView.setImageResource(AssetLogoMap.getExchangeLogo(exchangeName));
-    }
-
-    /**
-     * Calculate asset-specific risk using all available exchange data
-     * 
-     * @param opportunity The arbitrage opportunity containing the asset
-     */
-    private void calculateAssetRisk(ArbitrageOpportunity opportunity) {
-        try {
-            String symbol = opportunity.getNormalizedSymbol();
-            Ticker buyTicker = opportunity.getBuyTicker();
-            Ticker sellTicker = opportunity.getSellTicker();
-            double buyFee = opportunity.getBuyFeePercentage();
-            double sellFee = opportunity.getSellFeePercentage();
-            
-            // Only proceed if we have valid ticker data
-            if (buyTicker == null || sellTicker == null) {
-                Log.w(TAG, "Missing ticker data for " + symbol + ", skipping risk calculation");
-                return;
-            }
-            
-            // Calculate risk using both tickers for more accuracy
-            RiskAssessment assessment = assetRiskCalculator.calculateAssetRisk(
-                    symbol, buyTicker, sellTicker, buyFee, sellFee);
-            
-            // Store the risk assessment in the opportunity for later use using the adapter
-            RiskAssessmentAdapter.setRiskAssessment(opportunity, assessment);
-            
-            // Log the risk factors for debugging
-            Map<String, Integer> factors = assetRiskCalculator.getDetailedRiskFactors(symbol);
-            Log.d(TAG, String.format("Asset risk for %s: overall=%d%%, liquidity=%d%%, volatility=%d%%, depth=%d%%, slippage=%d%%",
-                    symbol, 
-                    assetRiskCalculator.getAssetRiskPercentage(symbol),
-                    factors.get("Liquidity"),
-                    factors.get("Volatility"),
-                    factors.get("Market Depth"),
-                    factors.get("Slippage")));
-            
-        } catch (Exception e) {
-            Log.e(TAG, "Error calculating asset risk: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Estimate volatility level from ticker data
-     */
-    private TimeEstimationUtil.MarketVolatility estimateVolatilityFromTickers(Ticker buyTicker, Ticker sellTicker) {
-        if (buyTicker == null || sellTicker == null) {
-            return TimeEstimationUtil.MarketVolatility.MEDIUM; // Default
-        }
-        
-        // Calculate price ranges as percentages
-        double buyRange = 0;
-        double sellRange = 0;
-        
-        if (buyTicker.getLastPrice() > 0 && buyTicker.getHighPrice() > 0 && buyTicker.getLowPrice() > 0) {
-            buyRange = (buyTicker.getHighPrice() - buyTicker.getLowPrice()) / buyTicker.getLastPrice();
-        }
-        
-        if (sellTicker.getLastPrice() > 0 && sellTicker.getHighPrice() > 0 && sellTicker.getLowPrice() > 0) {
-            sellRange = (sellTicker.getHighPrice() - sellTicker.getLowPrice()) / sellTicker.getLastPrice();
-        }
-        
-        // Use the average volatility from both exchanges
-        double avgVolatility = (buyRange + sellRange) / 2.0;
-        
-        // Map to volatility levels
-        if (avgVolatility < 0.01) {
-            return TimeEstimationUtil.MarketVolatility.VERY_LOW;
-        } else if (avgVolatility < 0.02) {
-            return TimeEstimationUtil.MarketVolatility.LOW;
-        } else if (avgVolatility < 0.04) {
-            return TimeEstimationUtil.MarketVolatility.MEDIUM;
-        } else if (avgVolatility < 0.07) {
-            return TimeEstimationUtil.MarketVolatility.HIGH;
+        // Higher scores = higher risk (1.0 is highest risk, 0.0 is lowest risk)
+        if (riskScore >= 0.9) {
+            return "Critical Risk";
+        } else if (riskScore >= 0.8) {
+            return "Extreme Risk";
+        } else if (riskScore >= 0.7) {
+            return "Very High Risk";
+        } else if (riskScore >= 0.6) {
+            return "High Risk";
+        } else if (riskScore >= 0.5) {
+            return "Medium-High Risk";
+        } else if (riskScore >= 0.4) {
+            return "Medium Risk";
+        } else if (riskScore >= 0.3) {
+            return "Low-Medium Risk";
+        } else if (riskScore >= 0.2) {
+            return "Low Risk";
+        } else if (riskScore >= 0.1) {
+            return "Very Low Risk";
         } else {
-            return TimeEstimationUtil.MarketVolatility.VERY_HIGH;
+            return "Minimal Risk";
+        }
+    }
+
+    /**
+     * Get color for risk level based on risk score
+     */
+    private int getRiskColor(double riskScore) {
+        // Higher scores = higher risk (red), lower scores = lower risk (green)
+        if (riskScore >= 0.9) {
+            return COLOR_RISK_EXTREME;         // Dark Red
+        } else if (riskScore >= 0.8) {
+            return COLOR_RISK_VERY_HIGH;       // Red
+        } else if (riskScore >= 0.7) {
+            return COLOR_RISK_HIGH;            // Deep Orange
+        } else if (riskScore >= 0.6) {
+            return COLOR_RISK_MODERATE_HIGH;   // Orange
+        } else if (riskScore >= 0.5) {
+            return COLOR_RISK_BALANCED;        // Amber
+        } else if (riskScore >= 0.4) {
+            return COLOR_RISK_MODERATE;        // Yellow
+        } else if (riskScore >= 0.3) {
+            return COLOR_RISK_LOW;             // Lime
+        } else if (riskScore >= 0.2) {
+            return COLOR_RISK_LOW;             // Lime (same as Low)
+        } else if (riskScore >= 0.1) {
+            return COLOR_RISK_VERY_LOW;        // Light Green
+        } else {
+            return COLOR_RISK_MINIMAL;         // Green
         }
     }
     
     /**
-     * Calculate optimal trade size based on order book depth and available capital
+     * Set the appropriate logo for an exchange
      */
-    private double calculateOptimalTradeSize(ArbitrageOpportunity opportunity) {
-        // Start with a reasonable default based on available capital
-        double defaultSize = availableCapital * 0.1; // 10% of available capital
-        
-        // Fall back to using ticker data since OrderBook isn't available
-        Ticker buyTicker = opportunity.getBuyTicker();
-        if (buyTicker != null && buyTicker.getVolume() > 0) {
-            // Use a small percentage of 24h volume as alternative to order book depth
-            double volumeBased = buyTicker.getVolume() * 0.001; // 0.1% of 24h volume
-            return Math.min(defaultSize, volumeBased);
+    private void setExchangeLogo(ImageView logoView, String exchangeName) {
+        if (exchangeName == null || exchangeName.isEmpty()) {
+            logoView.setImageResource(R.drawable.exchange_icon_placeholder);
+            return;
         }
         
-        return defaultSize;
+        // Convert to lowercase for case-insensitive matching
+        String exchange = exchangeName.toLowerCase();
+        
+        // Set logo based on exchange name
+        int logoResource;
+        switch (exchange) {
+            case "binance":
+                logoResource = R.drawable.binance_logo;
+                break;
+            case "coinbase":
+                logoResource = R.drawable.coinbase_logo;
+                break;
+            case "kraken":
+                logoResource = R.drawable.kraken_logo;
+                break;
+            case "okx":
+                logoResource = R.drawable.okx_logo;
+                break;
+            case "bybit":
+                logoResource = R.drawable.bybit_logo;
+                break;
+            default:
+                logoResource = R.drawable.exchange_icon_placeholder;
+                break;
+        }
+        
+        logoView.setImageResource(logoResource);
+    }
+    
+    /**
+     * Calculate estimated slippage based on market conditions
+     * @param opportunity The card model containing basic information
+     * @param originalOpportunity The original opportunity with more detailed data (can be null)
+     * @return Estimated slippage as a percentage (0.0 to 1.0)
+     */
+    private double calculateSlippage(ArbitrageCardModel opportunity, ArbitrageOpportunity originalOpportunity) {
+        // First try to use the pre-calculated value from the model
+        double slippage = opportunity.getEstimatedSlippage();
+        
+        // If we have a valid slippage already, just use it
+        if (slippage > 0 && slippage <= maxSlippagePercent) {
+            Log.d(TAG, "Using pre-calculated slippage: " + slippage);
+            return slippage;
+        }
+        
+        // If we have the original opportunity, calculate a more accurate slippage
+        if (originalOpportunity != null) {
+            try {
+                // Get liquidity information from the opportunity
+                double buyVolume = opportunity.getBuyVolume();
+                double sellVolume = opportunity.getSellVolume();
+                
+                // Get ticker data if available
+                Ticker buyTicker = originalOpportunity.getBuyTicker();
+                Ticker sellTicker = originalOpportunity.getSellTicker();
+                
+                if (buyTicker != null && sellTicker != null) {
+                    // Use direct slippage calculation
+                    // Estimate slippage based on volume and liquidity
+                    double buyLiquidity = opportunity.getBuyExchangeLiquidity();
+                    double sellLiquidity = opportunity.getSellExchangeLiquidity();
+                    
+                    // Calculate volume to liquidity ratio (higher means more slippage)
+                    double volumeToLiquidityRatio = 0.01; // Default value
+                    
+                    if (buyLiquidity > 0 && sellLiquidity > 0) {
+                        // Calculate weighted average of buy/sell ratios
+                        double buyRatio = Math.min(1.0, (availableCapital * maxPositionPercent) / buyLiquidity);
+                        double sellRatio = Math.min(1.0, (availableCapital * maxPositionPercent) / sellLiquidity);
+                        volumeToLiquidityRatio = (buyRatio + sellRatio) / 2.0;
+                    }
+                    
+                    // Base slippage calculation - higher volume/liquidity ratio means higher slippage
+                    slippage = 0.002 + (volumeToLiquidityRatio * 0.01);
+                    
+                    // Adjust for exchange reliability
+                    double exchangeReliability = (getExchangeReliability(opportunity.getBuyExchange()) + 
+                                              getExchangeReliability(opportunity.getSellExchange())) / 2.0;
+                    
+                    // More reliable exchanges have lower slippage
+                    slippage = slippage * (1.0 - (exchangeReliability * 0.5));
+                    
+                    Log.d(TAG, "Calculated fresh slippage: " + slippage);
+                    
+                    // Ensure slippage is within reasonable bounds
+                    slippage = Math.min(slippage, maxSlippagePercent);
+                    slippage = Math.max(slippage, 0.0001); // Minimum 0.01%
+                    
+                    return slippage;
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error calculating slippage: " + e.getMessage());
+            }
+        }
+        
+        // Fallback: calculate a basic slippage based on available data
+        double profitPercent = opportunity.getProfitPercent();
+        double exchangeFactor = (getExchangeReliability(opportunity.getBuyExchange()) + 
+                               getExchangeReliability(opportunity.getSellExchange())) / 2.0;
+        
+        // Higher profits and better exchanges = lower slippage
+        slippage = 0.005 - (Math.min(profitPercent, 0.05) * 0.05) - (exchangeFactor * 0.002);
+        slippage = Math.max(0.001, slippage); // At least 0.1%
+        
+        Log.d(TAG, "Using fallback slippage calculation: " + slippage);
+        return slippage;
+    }
+    
+    /**
+     * Calculate estimated execution time based on market conditions
+     * @param opportunity The card model containing basic information
+     * @param originalOpportunity The original opportunity with more detailed data (can be null)
+     * @return Estimated execution time in minutes
+     */
+    private double calculateExecutionTime(ArbitrageCardModel opportunity, ArbitrageOpportunity originalOpportunity) {
+        // First try to use the pre-calculated value from the model
+        double executionTimeMin = opportunity.getEstimatedExecutionTimeMin();
+        
+        // If we have a valid execution time already, just use it
+        if (executionTimeMin > 0) {
+            Log.d(TAG, "Using pre-calculated execution time: " + executionTimeMin);
+            return executionTimeMin;
+        }
+        
+        // If we have the original opportunity, calculate a more accurate execution time
+        if (originalOpportunity != null) {
+            try {
+                // Calculate execution time based on exchange speed, profit, and trading pair
+                String buyExchange = opportunity.getBuyExchange();
+                String sellExchange = opportunity.getSellExchange();
+                double profitPercent = opportunity.getProfitPercent();
+                
+                // Base time depends on the exchanges involved
+                double exchangeSpeedFactor = (getExchangeSpeed(buyExchange) + getExchangeSpeed(sellExchange)) / 2.0;
+                
+                // Base execution time - faster exchanges take less time
+                double baseTime = 30.0 * (1.0 - exchangeSpeedFactor);
+                
+                // Adjust for profit - higher profit often means slower execution due to market depth
+                double profitFactor = Math.min(1.5, 1.0 + (profitPercent * 10.0));
+                
+                executionTimeMin = baseTime * profitFactor;
+                
+                // Add random variation to make estimates more realistic (±15%)
+                double randomFactor = 0.85 + (Math.random() * 0.3);
+                executionTimeMin *= randomFactor;
+                
+                // Round to nearest minute
+                executionTimeMin = Math.round(executionTimeMin);
+                
+                Log.d(TAG, "Calculated fresh execution time: " + executionTimeMin);
+                
+                // Ensure execution time is within reasonable bounds
+                executionTimeMin = Math.max(5.0, executionTimeMin); // At least 5 minutes
+                executionTimeMin = Math.min(120.0, executionTimeMin); // At most 2 hours
+                
+                return executionTimeMin;
+            } catch (Exception e) {
+                Log.e(TAG, "Error calculating execution time: " + e.getMessage());
+            }
+        }
+        
+        // Fallback: calculate a basic execution time based on exchange reliability
+        double exchangeSpeed = (getExchangeSpeed(opportunity.getBuyExchange()) + 
+                             getExchangeSpeed(opportunity.getSellExchange())) / 2.0;
+        
+        // Base execution time = 20 minutes, adjusted by exchange speed
+        executionTimeMin = 20.0 * (1.0 - exchangeSpeed);
+        executionTimeMin = Math.max(5.0, executionTimeMin); // At least 5 minutes
+        
+        Log.d(TAG, "Using fallback execution time calculation: " + executionTimeMin);
+        return executionTimeMin;
+    }
+    
+    /**
+     * Gets a reliability factor for a specific exchange (for slippage calculation)
+     */
+    private double getExchangeReliability(String exchange) {
+        if (exchange == null) return 0.3;
+        
+        switch (exchange.toLowerCase()) {
+            case "binance": return 0.9;  // Most reliable
+            case "coinbase": return 0.85;
+            case "kraken": return 0.8;
+            case "kucoin": return 0.75;
+            case "bybit": return 0.7;
+            case "okx": return 0.75;
+            case "gemini": return 0.7;
+            case "bitfinex": return 0.6;
+            default: return 0.5;
+        }
+    }
+    
+    /**
+     * Gets a speed factor for a specific exchange (for execution time calculation)
+     */
+    private double getExchangeSpeed(String exchange) {
+        if (exchange == null) return 0.5;
+        
+        switch (exchange.toLowerCase()) {
+            case "binance": return 0.8;  // Fastest
+            case "okx": return 0.75;
+            case "bybit": return 0.7;
+            case "kucoin": return 0.65;
+            case "kraken": return 0.6;
+            case "coinbase": return 0.55;
+            case "gemini": return 0.5;
+            case "bitfinex": return 0.45;
+            default: return 0.5;
+        }
     }
 
-    static class OpportunityViewHolder extends RecyclerView.ViewHolder {
-        TextView symbolText;
-        TextView profitText;
-        ImageView buyExchangeLogo;
-        TextView buyExchangeName;
-        ImageView sellExchangeLogo;
-        TextView sellExchangeName;
-        TextView buyPrice;
-        TextView sellPrice;
-        TextView buyFeeText;
-        TextView sellFeeText;
-        ProgressBar riskProgress;
-        TextView riskText;
-        TextView slippageText;
-        TextView timeText;
-        TextView roiEfficiencyText;
+    /**
+     * View holder for opportunity items
+     */
+    static class ViewHolder extends RecyclerView.ViewHolder {
+        final CardView cardView;
+        final TextView symbolText;
+        final TextView profitText;
+        final TextView buyExchangeName;
+        final TextView sellExchangeName;
+        final ImageView buyExchangeLogo;
+        final ImageView sellExchangeLogo;
+        final TextView buyPrice;
+        final TextView sellPrice;
+        final TextView buyFeeText;
+        final TextView sellFeeText;
+        final TextView riskText;
+        final View riskIndicator;
+        final ProgressBar riskProgress;
+        final TextView slippageText;
+        final TextView timeText;
+        final TextView roiEfficiencyText;
 
-        OpportunityViewHolder(@NonNull View itemView) {
-            super(itemView);
-            symbolText = itemView.findViewById(R.id.symbol_text);
-            profitText = itemView.findViewById(R.id.profit_text);
-            buyExchangeLogo = itemView.findViewById(R.id.buy_exchange_logo);
-            buyExchangeName = itemView.findViewById(R.id.buy_exchange_name);
-            sellExchangeLogo = itemView.findViewById(R.id.sell_exchange_logo);
-            sellExchangeName = itemView.findViewById(R.id.sell_exchange_name);
-            buyPrice = itemView.findViewById(R.id.buy_price);
-            sellPrice = itemView.findViewById(R.id.sell_price);
-            buyFeeText = itemView.findViewById(R.id.buy_fee_text);
-            sellFeeText = itemView.findViewById(R.id.sell_fee_text);
-            riskProgress = itemView.findViewById(R.id.risk_progress);
-            riskText = itemView.findViewById(R.id.risk_text);
-            slippageText = itemView.findViewById(R.id.slippage_text);
-            timeText = itemView.findViewById(R.id.time_text);
-            roiEfficiencyText = itemView.findViewById(R.id.roi_efficiency_text);
+        ViewHolder(View view) {
+            super(view);
+            cardView = (CardView) view;
+            symbolText = view.findViewById(R.id.symbol_text);
+            profitText = view.findViewById(R.id.profit_text);
+            buyExchangeName = view.findViewById(R.id.buy_exchange_name);
+            sellExchangeName = view.findViewById(R.id.sell_exchange_name);
+            buyExchangeLogo = view.findViewById(R.id.buy_exchange_logo);
+            sellExchangeLogo = view.findViewById(R.id.sell_exchange_logo);
+            buyPrice = view.findViewById(R.id.buy_price);
+            sellPrice = view.findViewById(R.id.sell_price);
+            buyFeeText = view.findViewById(R.id.buy_fee_text);
+            sellFeeText = view.findViewById(R.id.sell_fee_text);
+            riskText = view.findViewById(R.id.risk_text);
+            riskIndicator = view.findViewById(R.id.risk_indicator);
+            riskProgress = view.findViewById(R.id.risk_progress);
+            slippageText = view.findViewById(R.id.slippage_text);
+            timeText = view.findViewById(R.id.time_text);
+            roiEfficiencyText = view.findViewById(R.id.roi_efficiency_text);
         }
     }
 } 

@@ -111,11 +111,19 @@ public class ExchangeConfiguration {
         connectionTimeouts.put("bybit", 30000);
         connectionTimeouts.put("okx", 30000);
         
+        // Set all exchanges to enabled for default
         enabled.put("binance", true);
         enabled.put("coinbase", true);
         enabled.put("kraken", true);
         enabled.put("bybit", true);
         enabled.put("okx", true);
+        
+        // Also ensure Binance is added to the enabledExchanges list
+        enabledExchanges.add("binance");
+        enabledExchanges.add("coinbase");
+        enabledExchanges.add("kraken");
+        enabledExchanges.add("bybit");
+        enabledExchanges.add("okx");
         
         // Initialize reliability scores (1.0 = most reliable)
         reliabilityScores.put("binance", 0.95);

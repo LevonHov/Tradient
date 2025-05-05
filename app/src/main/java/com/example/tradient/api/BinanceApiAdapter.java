@@ -41,13 +41,45 @@ public class BinanceApiAdapter implements ExchangeApiAdapter {
     public BinanceApiAdapter() {
         // Configure client with longer timeouts for reliability
         this.client = new OkHttpClient.Builder()
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(15, TimeUnit.SECONDS)
+            .connectTimeout(15, TimeUnit.SECONDS)  // Increased from 10 to 15
+            .readTimeout(40, TimeUnit.SECONDS)     // Increased from 30 to 40
+            .writeTimeout(20, TimeUnit.SECONDS)    // Increased from 15 to 20
+            .retryOnConnectionFailure(true)        // Add retry on connection failure
             .build();
         this.executor = Executors.newCachedThreadPool();
         
-        Log.d(TAG, "Initialized Binance API adapter");
+        Log.d(TAG, "Initialized Binance API adapter with extended timeouts");
+        
+        // Test connectivity at initialization to verify connection
+        testConnectivity();
+    }
+    
+    /**
+     * Test connectivity to the Binance API
+     */
+    private void testConnectivity() {
+        String url = BASE_URL + "/api/v3/ping";
+        Request request = new Request.Builder().url(url).build();
+        
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "❌ Binance connectivity test failed: " + e.getMessage(), e);
+            }
+            
+            @Override
+            public void onResponse(Call call, Response response) {
+                try (ResponseBody responseBody = response.body()) {
+                    if (response.isSuccessful()) {
+                        Log.d(TAG, "✅ Binance connectivity test successful: " + response.code());
+                    } else {
+                        Log.e(TAG, "❌ Binance connectivity test failed with HTTP: " + response.code() + " - " + response.message());
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "❌ Error testing Binance connectivity: " + e.getMessage(), e);
+                }
+            }
+        });
     }
     
     @Override
@@ -56,14 +88,25 @@ public class BinanceApiAdapter implements ExchangeApiAdapter {
         
         Log.d(TAG, "Fetching ticker for " + symbol + " from Binance");
         
+        if (symbol == null || symbol.isEmpty()) {
+            Log.e(TAG, "Invalid symbol provided: " + symbol);
+            future.completeExceptionally(new IllegalArgumentException("Symbol cannot be null or empty"));
+            return future;
+        }
+        
         // Binance ticker endpoint: /api/v3/ticker/24hr?symbol={symbol}
         String url = BASE_URL + "/api/v3/ticker/24hr?symbol=" + symbol;
-        Request request = new Request.Builder().url(url).build();
+        Request request = new Request.Builder()
+            .url(url)
+            .addHeader("User-Agent", "Tradient-App")  // Add proper user agent
+            .build();
+        
+        Log.d(TAG, "Making request to: " + url);
         
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
-                Log.e(TAG, "Error fetching ticker for " + symbol + ": " + e.getMessage());
+                Log.e(TAG, "Error fetching ticker for " + symbol + ": " + e.getMessage(), e);
                 future.completeExceptionally(e);
             }
             
@@ -73,6 +116,16 @@ public class BinanceApiAdapter implements ExchangeApiAdapter {
                     if (!response.isSuccessful()) {
                         String errorMsg = "HTTP Error: " + response.code() + " - " + response.message();
                         Log.e(TAG, "Binance ticker error: " + errorMsg);
+                        
+                        // If the error is 400, it could mean the symbol doesn't exist
+                        if (response.code() == 400 && responseBody != null) {
+                            String responseData = responseBody.string();
+                            Log.e(TAG, "Binance error response: " + responseData);
+                            if (responseData.contains("Invalid symbol")) {
+                                errorMsg = "Invalid symbol: " + symbol;
+                            }
+                        }
+                        
                         future.completeExceptionally(new IOException(errorMsg));
                         return;
                     }
@@ -83,6 +136,14 @@ public class BinanceApiAdapter implements ExchangeApiAdapter {
                     }
                     
                     String responseData = responseBody.string();
+                    
+                    // Log the first part of the response (truncated if too long)
+                    if (responseData.length() > 500) {
+                        Log.d(TAG, "Ticker response (truncated): " + responseData.substring(0, 500) + "...");
+                    } else {
+                        Log.d(TAG, "Ticker response: " + responseData);
+                    }
+                    
                     JSONObject json = new JSONObject(responseData);
                     
                     // Create new ticker with data
@@ -101,7 +162,7 @@ public class BinanceApiAdapter implements ExchangeApiAdapter {
                     future.complete(ticker);
                     
                 } catch (Exception e) {
-                    Log.e(TAG, "Error parsing ticker data for " + symbol + ": " + e.getMessage());
+                    Log.e(TAG, "Error parsing ticker data for " + symbol + ": " + e.getMessage(), e);
                     future.completeExceptionally(e);
                 }
             }
@@ -307,8 +368,16 @@ public class BinanceApiAdapter implements ExchangeApiAdapter {
     
     @Override
     public String convertSymbolToExchangeFormat(String normalizedSymbol) {
+        if (normalizedSymbol == null || normalizedSymbol.isEmpty()) {
+            Log.e(TAG, "Cannot convert null or empty symbol to Binance format");
+            return "";
+        }
+        
         // Binance uses no separator, e.g., "BTC/USDT" -> "BTCUSDT"
-        String formatted = normalizedSymbol.replace("/", "");
+        String formatted = normalizedSymbol.replace("/", "")
+                                          .replace("-", "")
+                                          .replace(" ", "")
+                                          .toUpperCase(); 
         Log.d(TAG, "Converted " + normalizedSymbol + " to Binance format: " + formatted);
         return formatted;
     }
