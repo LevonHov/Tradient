@@ -10,8 +10,9 @@ import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.util.Log;
 import android.util.Pair;
-import android.content.Intent;
 import android.content.Context;
+import android.widget.Toast;
+import android.content.Intent;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
@@ -34,6 +35,7 @@ import com.example.tradient.data.model.OrderBook;
 import com.example.tradient.util.AssetLogoMap;
 import com.example.tradient.util.RiskAssessmentAdapter;
 import com.example.tradient.ui.opportunities.RiskUtils;
+import com.example.tradient.domain.risk.UnifiedRiskCalculator;
 
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
@@ -58,8 +60,7 @@ public class OpportunityAdapter extends RecyclerView.Adapter<OpportunityAdapter.
     private final NumberFormat currencyFormatter;
     private final NumberFormat percentFormatter;
     private final SlippageManagerService slippageManager;
-    private final RiskCalculator riskCalculator;
-    private final AssetRiskCalculator assetRiskCalculator;
+    private final UnifiedRiskCalculator riskCalculator;
     
     // Configuration values from ArbitrageProcessMain
     private final double minProfitPercent;
@@ -97,8 +98,7 @@ public class OpportunityAdapter extends RecyclerView.Adapter<OpportunityAdapter.
         
         // Initialize risk and slippage calculators
         slippageManager = new SlippageManagerService();
-        riskCalculator = new RiskCalculator();
-        assetRiskCalculator = new AssetRiskCalculator();
+        riskCalculator = UnifiedRiskCalculator.getInstance();
         
         // Load configuration values
         minProfitPercent = ConfigurationFactory.getArbitrageConfig().getMinProfitPercent();
@@ -196,6 +196,7 @@ public class OpportunityAdapter extends RecyclerView.Adapter<OpportunityAdapter.
         // Set card click listener to open details
         holder.cardView.setOnClickListener(v -> {
             if (originalIndex >= 0) {
+                // Navigate to the detail activity with the opportunity data
                 Intent intent = new Intent(context, OpportunityDetailActivity.class);
                 intent.putExtra("opportunity", originalOpportunities.get(originalIndex));
                 context.startActivity(intent);
@@ -285,59 +286,19 @@ public class OpportunityAdapter extends RecyclerView.Adapter<OpportunityAdapter.
     }
 
     /**
-     * Get risk level text based on risk score
+     * Get the appropriate risk level text for a risk score
      */
     private String getRiskLevelText(double riskScore) {
-        // Higher scores = higher risk (1.0 is highest risk, 0.0 is lowest risk)
-        if (riskScore >= 0.9) {
-            return "Critical Risk";
-        } else if (riskScore >= 0.8) {
-            return "Extreme Risk";
-        } else if (riskScore >= 0.7) {
-            return "Very High Risk";
-        } else if (riskScore >= 0.6) {
-            return "High Risk";
-        } else if (riskScore >= 0.5) {
-            return "Medium-High Risk";
-        } else if (riskScore >= 0.4) {
-            return "Medium Risk";
-        } else if (riskScore >= 0.3) {
-            return "Low-Medium Risk";
-        } else if (riskScore >= 0.2) {
-            return "Low Risk";
-        } else if (riskScore >= 0.1) {
-            return "Very Low Risk";
-        } else {
-            return "Minimal Risk";
-        }
+        // Use UnifiedRiskCalculator directly without inverting the scale
+        return riskCalculator.getRiskLevelText(riskScore);
     }
 
     /**
-     * Get color for risk level based on risk score
+     * Get the appropriate color for a risk score
      */
     private int getRiskColor(double riskScore) {
-        // Higher scores = higher risk (red), lower scores = lower risk (green)
-        if (riskScore >= 0.9) {
-            return COLOR_RISK_EXTREME;         // Dark Red
-        } else if (riskScore >= 0.8) {
-            return COLOR_RISK_VERY_HIGH;       // Red
-        } else if (riskScore >= 0.7) {
-            return COLOR_RISK_HIGH;            // Deep Orange
-        } else if (riskScore >= 0.6) {
-            return COLOR_RISK_MODERATE_HIGH;   // Orange
-        } else if (riskScore >= 0.5) {
-            return COLOR_RISK_BALANCED;        // Amber
-        } else if (riskScore >= 0.4) {
-            return COLOR_RISK_MODERATE;        // Yellow
-        } else if (riskScore >= 0.3) {
-            return COLOR_RISK_LOW;             // Lime
-        } else if (riskScore >= 0.2) {
-            return COLOR_RISK_LOW;             // Lime (same as Low)
-        } else if (riskScore >= 0.1) {
-            return COLOR_RISK_VERY_LOW;        // Light Green
-        } else {
-            return COLOR_RISK_MINIMAL;         // Green
-        }
+        // Use UnifiedRiskCalculator directly without inverting the scale
+        return riskCalculator.getRiskColor(riskScore);
     }
     
     /**
@@ -379,148 +340,81 @@ public class OpportunityAdapter extends RecyclerView.Adapter<OpportunityAdapter.
     }
     
     /**
-     * Calculate estimated slippage based on market conditions
-     * @param opportunity The card model containing basic information
-     * @param originalOpportunity The original opportunity with more detailed data (can be null)
-     * @return Estimated slippage as a percentage (0.0 to 1.0)
+     * Calculate slippage for an opportunity
      */
     private double calculateSlippage(ArbitrageCardModel opportunity, ArbitrageOpportunity originalOpportunity) {
-        // First try to use the pre-calculated value from the model
-        double slippage = opportunity.getEstimatedSlippage();
+        // Default slippage for safety
+        double defaultSlippage = 0.005; // 0.5%
         
-        // If we have a valid slippage already, just use it
-        if (slippage > 0 && slippage <= maxSlippagePercent) {
-            Log.d(TAG, "Using pre-calculated slippage: " + slippage);
-            return slippage;
-        }
-        
-        // If we have the original opportunity, calculate a more accurate slippage
+        // Try to get slippage from the original opportunity first
         if (originalOpportunity != null) {
             try {
-                // Get liquidity information from the opportunity
-                double buyVolume = opportunity.getBuyVolume();
-                double sellVolume = opportunity.getSellVolume();
-                
-                // Get ticker data if available
-                Ticker buyTicker = originalOpportunity.getBuyTicker();
-                Ticker sellTicker = originalOpportunity.getSellTicker();
-                
-                if (buyTicker != null && sellTicker != null) {
-                    // Use direct slippage calculation
-                    // Estimate slippage based on volume and liquidity
-                    double buyLiquidity = opportunity.getBuyExchangeLiquidity();
-                    double sellLiquidity = opportunity.getSellExchangeLiquidity();
-                    
-                    // Calculate volume to liquidity ratio (higher means more slippage)
-                    double volumeToLiquidityRatio = 0.01; // Default value
-                    
-                    if (buyLiquidity > 0 && sellLiquidity > 0) {
-                        // Calculate weighted average of buy/sell ratios
-                        double buyRatio = Math.min(1.0, (availableCapital * maxPositionPercent) / buyLiquidity);
-                        double sellRatio = Math.min(1.0, (availableCapital * maxPositionPercent) / sellLiquidity);
-                        volumeToLiquidityRatio = (buyRatio + sellRatio) / 2.0;
+                // Check if the opportunity has a valid risk assessment
+                RiskAssessment riskAssessment = originalOpportunity.getRiskAssessment();
+                if (riskAssessment != null && riskAssessment.isValid()) {
+                    double slippage = riskAssessment.getSlippageEstimate();
+                    if (slippage > 0) {
+                        return slippage;
                     }
-                    
-                    // Base slippage calculation - higher volume/liquidity ratio means higher slippage
-                    slippage = 0.002 + (volumeToLiquidityRatio * 0.01);
-                    
-                    // Adjust for exchange reliability
-                    double exchangeReliability = (getExchangeReliability(opportunity.getBuyExchange()) + 
-                                              getExchangeReliability(opportunity.getSellExchange())) / 2.0;
-                    
-                    // More reliable exchanges have lower slippage
-                    slippage = slippage * (1.0 - (exchangeReliability * 0.5));
-                    
-                    Log.d(TAG, "Calculated fresh slippage: " + slippage);
-                    
-                    // Ensure slippage is within reasonable bounds
-                    slippage = Math.min(slippage, maxSlippagePercent);
-                    slippage = Math.max(slippage, 0.0001); // Minimum 0.01%
-                    
-                    return slippage;
+                }
+                
+                // If there's no valid assessment, calculate using UnifiedRiskCalculator
+                RiskAssessment assessment = riskCalculator.calculateRisk(originalOpportunity);
+                if (assessment != null) {
+                    // Apply the assessment to the opportunity
+                    riskCalculator.applyRiskAssessment(originalOpportunity, assessment);
+                    return assessment.getSlippageEstimate();
                 }
             } catch (Exception e) {
-                Log.e(TAG, "Error calculating slippage: " + e.getMessage());
+                Log.e(TAG, "Error calculating slippage: " + e.getMessage(), e);
             }
         }
         
-        // Fallback: calculate a basic slippage based on available data
-        double profitPercent = opportunity.getProfitPercent();
-        double exchangeFactor = (getExchangeReliability(opportunity.getBuyExchange()) + 
-                               getExchangeReliability(opportunity.getSellExchange())) / 2.0;
+        // Fallback to the slippage in the card model if it exists
+        if (opportunity.getEstimatedSlippage() > 0) {
+            return opportunity.getEstimatedSlippage();
+        }
         
-        // Higher profits and better exchanges = lower slippage
-        slippage = 0.005 - (Math.min(profitPercent, 0.05) * 0.05) - (exchangeFactor * 0.002);
-        slippage = Math.max(0.001, slippage); // At least 0.1%
-        
-        Log.d(TAG, "Using fallback slippage calculation: " + slippage);
-        return slippage;
+        return defaultSlippage;
     }
     
     /**
-     * Calculate estimated execution time based on market conditions
-     * @param opportunity The card model containing basic information
-     * @param originalOpportunity The original opportunity with more detailed data (can be null)
-     * @return Estimated execution time in minutes
+     * Calculate execution time for an opportunity
      */
     private double calculateExecutionTime(ArbitrageCardModel opportunity, ArbitrageOpportunity originalOpportunity) {
-        // First try to use the pre-calculated value from the model
-        double executionTimeMin = opportunity.getEstimatedExecutionTimeMin();
+        // Default execution time
+        double defaultTime = 3.0; // 3 minutes
         
-        // If we have a valid execution time already, just use it
-        if (executionTimeMin > 0) {
-            Log.d(TAG, "Using pre-calculated execution time: " + executionTimeMin);
-            return executionTimeMin;
-        }
-        
-        // If we have the original opportunity, calculate a more accurate execution time
+        // Try to get execution time from the original opportunity first
         if (originalOpportunity != null) {
             try {
-                // Calculate execution time based on exchange speed, profit, and trading pair
-                String buyExchange = opportunity.getBuyExchange();
-                String sellExchange = opportunity.getSellExchange();
-                double profitPercent = opportunity.getProfitPercent();
+                // Check if the opportunity has a valid risk assessment
+                RiskAssessment riskAssessment = originalOpportunity.getRiskAssessment();
+                if (riskAssessment != null && riskAssessment.isValid()) {
+                    double executionTime = riskAssessment.getExecutionTimeEstimate();
+                    if (executionTime > 0) {
+                        return executionTime;
+                    }
+                }
                 
-                // Base time depends on the exchanges involved
-                double exchangeSpeedFactor = (getExchangeSpeed(buyExchange) + getExchangeSpeed(sellExchange)) / 2.0;
-                
-                // Base execution time - faster exchanges take less time
-                double baseTime = 30.0 * (1.0 - exchangeSpeedFactor);
-                
-                // Adjust for profit - higher profit often means slower execution due to market depth
-                double profitFactor = Math.min(1.5, 1.0 + (profitPercent * 10.0));
-                
-                executionTimeMin = baseTime * profitFactor;
-                
-                // Add random variation to make estimates more realistic (±15%)
-                double randomFactor = 0.85 + (Math.random() * 0.3);
-                executionTimeMin *= randomFactor;
-                
-                // Round to nearest minute
-                executionTimeMin = Math.round(executionTimeMin);
-                
-                Log.d(TAG, "Calculated fresh execution time: " + executionTimeMin);
-                
-                // Ensure execution time is within reasonable bounds
-                executionTimeMin = Math.max(5.0, executionTimeMin); // At least 5 minutes
-                executionTimeMin = Math.min(120.0, executionTimeMin); // At most 2 hours
-                
-                return executionTimeMin;
+                // If there's no valid assessment, calculate using UnifiedRiskCalculator
+                RiskAssessment assessment = riskCalculator.calculateRisk(originalOpportunity);
+                if (assessment != null) {
+                    // Apply the assessment to the opportunity
+                    riskCalculator.applyRiskAssessment(originalOpportunity, assessment);
+                    return assessment.getExecutionTimeEstimate();
+                }
             } catch (Exception e) {
-                Log.e(TAG, "Error calculating execution time: " + e.getMessage());
+                Log.e(TAG, "Error calculating execution time: " + e.getMessage(), e);
             }
         }
         
-        // Fallback: calculate a basic execution time based on exchange reliability
-        double exchangeSpeed = (getExchangeSpeed(opportunity.getBuyExchange()) + 
-                             getExchangeSpeed(opportunity.getSellExchange())) / 2.0;
+        // Fallback to the execution time in the card model if it exists
+        if (opportunity.getEstimatedExecutionTimeMin() > 0) {
+            return opportunity.getEstimatedExecutionTimeMin();
+        }
         
-        // Base execution time = 20 minutes, adjusted by exchange speed
-        executionTimeMin = 20.0 * (1.0 - exchangeSpeed);
-        executionTimeMin = Math.max(5.0, executionTimeMin); // At least 5 minutes
-        
-        Log.d(TAG, "Using fallback execution time calculation: " + executionTimeMin);
-        return executionTimeMin;
+        return defaultTime;
     }
     
     /**

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base application theme -->
+    <style name="Theme.Tradient" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorPrimaryDark">@color/primary_dark</item>
+        <item name="colorAccent">@color/accent</item>
+        <item name="android:windowBackground">@color/primary_dark</item>
+        <!-- Configure bottom sheet behavior -->
+        <item name="bottomSheetDialogTheme">@style/ThemeOverlay.Tradient.BottomSheetDialog</item>
+    </style>
+
+    <!-- Bottom Sheet Dialog Theme -->
+    <style name="ThemeOverlay.Tradient.BottomSheetDialog" parent="ThemeOverlay.MaterialComponents.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/Widget.Tradient.BottomSheet</item>
+    </style>
+
+    <style name="Widget.Tradient.BottomSheet" parent="Widget.MaterialComponents.BottomSheet">
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.Tradient.BottomSheet</item>
+        <item name="backgroundTint">@color/primary</item>
+        <item name="behavior_peekHeight">0dp</item>
+        <item name="behavior_hideable">true</item>
+    </style>
+
+    <style name="ShapeAppearance.Tradient.BottomSheet" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSizeTopRight">24dp</item>
+        <item name="cornerSizeTopLeft">24dp</item>
+        <item name="cornerSizeBottomRight">0dp</item>
+        <item name="cornerSizeBottomLeft">0dp</item>
+    </style>
+
+    <!-- Filter Chip Style -->
+    <style name="Widget.Tradient.FilterChip" parent="Widget.MaterialComponents.Chip.Choice">
+        <item name="chipBackgroundColor">@color/chip_background_selector</item>
+        <item name="chipStrokeColor">@color/chip_stroke_selector</item>
+        <item name="chipStrokeWidth">1dp</item>
+        <item name="chipIconTint">@color/chip_icon_selector</item>
+        <item name="chipIconVisible">true</item>
+        <item name="chipEndPadding">12dp</item>
+        <item name="chipStartPadding">12dp</item>
+        <item name="android:textColor">@color/chip_text_selector</item>
+        <item name="rippleColor">@color/accent_20</item>
+    </style>
+
+    <!-- Animation for the bottom sheet -->
+    <style name="Animation.Tradient.BottomSheet" parent="Animation.MaterialComponents">
+        <item name="android:windowEnterAnimation">@anim/bottom_sheet_slide_in</item>
+        <item name="android:windowExitAnimation">@anim/bottom_sheet_slide_out</item>
+    </style>
+</resources> 

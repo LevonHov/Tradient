@@ -16,11 +16,9 @@
                     <shape android:shape="rectangle">
                         <corners android:radius="2dp" />
                         <gradient
-                            android:endColor="@color/success_green"
-                            android:startColor="@color/success_green"
-                            android:centerColor="@color/alert_orange"
-                            android:centerX="0.6"
-                            android:endX="1.0"
+                            android:startColor="@color/risk_very_high"
+                            android:centerColor="@color/risk_medium"
+                            android:endColor="@color/risk_very_low"
                             android:type="linear" />
                     </shape>
                 </item>

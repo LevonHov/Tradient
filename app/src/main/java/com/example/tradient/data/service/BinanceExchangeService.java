@@ -238,8 +238,9 @@ public class BinanceExchangeService extends ExchangeService {
     public OrderBook fetchOrderBookREST(String symbol) {
         OrderBook orderBook = null;
         try {
-            // Request a deeper order book (500 levels) for better market depth analysis
-            String endpoint = BASE_URL + "/api/v3/depth?symbol=" + symbol.replace("/", "") + "&limit=500";
+            // Request the maximum depth (5000 levels) for full order book analysis
+            // This ensures we're getting all available liquidity data
+            String endpoint = BASE_URL + "/api/v3/depth?symbol=" + symbol.replace("/", "") + "&limit=5000";
             String response = httpService.get(endpoint);
             
             JSONObject json = HttpService.parseJsonObject(response);
@@ -266,28 +267,11 @@ public class BinanceExchangeService extends ExchangeService {
             
             // Create the order book with the current timestamp
             orderBook = new OrderBook(symbol, bids, asks, new Date());
+            orderBook.setExchangeName("Binance");
             
-            // Calculate and store additional metrics for market analysis
-            if (orderBook != null) {
-                // Calculate total volume within top price levels
-                double totalBidVolume = calculateVolumeSum(bids, 10);
-                double totalAskVolume = calculateVolumeSum(asks, 10);
-                
-                // Store these metrics in the order book for use in UI
-                orderBook.setMetadata("totalBidVolume", totalBidVolume);
-                orderBook.setMetadata("totalAskVolume", totalAskVolume);
-                
-                // Calculate bid-ask spread
-                if (!bids.isEmpty() && !asks.isEmpty()) {
-                    double highestBid = bids.get(0).getPrice();
-                    double lowestAsk = asks.get(0).getPrice();
-                    double spread = lowestAsk - highestBid;
-                    double spreadPercentage = spread / lowestAsk * 100;
-                    
-                    orderBook.setMetadata("spreadAmount", spread);
-                    orderBook.setMetadata("spreadPercentage", spreadPercentage);
-                }
-            }
+            // Log the total order book entries for debugging
+            logInfo("Fetched order book for " + symbol + " with " + bids.size() + 
+                    " bids and " + asks.size() + " asks");
             
         } catch (Exception e) {
             logError("Error fetching order book from Binance", e);

@@ -1,46 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/background"
+    android:fitsSystemWindows="true"
+    android:background="@color/dark_background"
     tools:context=".ui.opportunities.OpportunityDetailActivity">
 
-    <LinearLayout
+    <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:padding="16dp">
+        android:background="@android:color/transparent"
+        android:theme="@style/Theme.Tradient.AppBarOverlay">
 
-        <!-- Loading indicator -->
-        <androidx.constraintlayout.widget.ConstraintLayout
+        <androidx.appcompat.widget.Toolbar
+            android:id="@+id/toolbar"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content">
+            android:layout_height="?attr/actionBarSize"
+            android:background="@android:color/transparent"
+            app:popupTheme="@style/Theme.Tradient.PopupOverlay" />
 
-            <com.google.android.material.progressindicator.CircularProgressIndicator
-                android:id="@+id/loadingIndicator"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:indeterminate="true"
-                app:indicatorColor="@color/neon_blue"
-                app:layout_constraintTop_toTopOf="parent"
-                app:layout_constraintEnd_toEndOf="parent"
-                android:layout_marginTop="8dp"
-                android:layout_marginEnd="8dp"/>
-        </androidx.constraintlayout.widget.ConstraintLayout>
+    </com.google.android.material.appbar.AppBarLayout>
 
-        <!-- Header with trading pair and profit -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/profitCard"
+    <androidx.core.widget.NestedScrollView
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="4dp"
-            app:strokeWidth="2dp"
-            app:strokeColor="@color/profit_positive"
-            app:cardBackgroundColor="@color/card_background">
+        android:layout_height="match_parent"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -48,225 +35,372 @@
                 android:orientation="vertical"
                 android:padding="16dp">
 
-                <TextView
-                    android:id="@+id/symbolTextView"
-                    style="@style/TextAppearance.AppCompat.Large"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textColor="#FFFFFF"
-                    android:textStyle="bold"
-                    android:textSize="24sp"
-                    tools:text="BTC/USD"/>
-
-                <TextView
-                    android:id="@+id/profitTextView"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_below="@id/symbolTextView"
-                    android:textColor="@color/profit_positive"
-                    android:textSize="18sp"
-                    tools:text="+1.25%"/>
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Arbitrage Profit"
-                    android:textSize="14sp"
-                    android:textColor="@color/secondary_text" />
-
-                <TextView
-                    android:id="@+id/lastUpdateTimeTextView"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textSize="12sp"
-                    android:textColor="@color/secondary_text"
-                    android:textStyle="italic"
-                    android:layout_marginTop="4dp"
-                    tools:text="Last Updated: 10:25:30" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Exchange Information -->
+            <!-- Header Card with Trading Pair Info -->
         <com.google.android.material.card.MaterialCardView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="16dp"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="4dp"
-            app:cardBackgroundColor="@color/card_background">
+                app:cardBackgroundColor="#1E2130"
+                app:cardCornerRadius="24dp"
+                app:cardElevation="6dp"
+                app:strokeWidth="1dp"
+                app:strokeColor="#33FFFFFF">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
+                    android:orientation="vertical">
 
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Exchange Information"
-                    android:textSize="18sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/primary_text"
-                    android:layout_marginBottom="12dp" />
-
-                <GridLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:columnCount="2"
-                    android:rowCount="6">
-
-                    <!-- Buy Exchange -->
-                    <TextView
-                        android:id="@+id/buyExchangeTextView"
-                        android:layout_width="0dp"
+                    <!-- Glassmorphism Header -->
+                    <FrameLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+                        
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="100dp"
+                            android:background="@drawable/card_header_gradient" />
+                        
+                        <LinearLayout
+                            android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_columnWeight="1"
-                        android:text="Buy Exchange"
-                        android:textSize="14sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/secondary_text" />
+                            android:orientation="vertical"
+                            android:padding="24dp">
 
                     <TextView
-                        android:id="@+id/sellExchangeTextView"
+                            android:id="@+id/symbolText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                                android:textSize="28sp"
+                                android:textColor="@color/primary_text"
+                                android:fontFamily="sans-serif-medium"
+                                android:textStyle="bold"
+                            tools:text="BTC/USDT" />
+
+                            <TextView
+                                android:id="@+id/profitText"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="8dp"
+                                android:textSize="22sp"
+                                android:textStyle="bold"
+                                android:fontFamily="sans-serif-medium"
+                                tools:text="+ 0.46%"
+                                tools:textColor="@color/success_green" />
+                    </LinearLayout>
+                    </FrameLayout>
+
+                    <!-- Exchange Direction Section -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:padding="16dp"
+                        android:gravity="center_vertical">
+
+                        <!-- Buy Exchange -->
+                        <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_columnWeight="1"
-                        android:text="Sell Exchange"
-                        android:textSize="14sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/secondary_text" />
+                            android:layout_weight="1"
+                            android:orientation="vertical"
+                            android:gravity="center">
 
-                    <!-- Buy Price -->
+                            <com.google.android.material.card.MaterialCardView
+                                android:layout_width="64dp"
+                                android:layout_height="64dp"
+                                app:cardCornerRadius="32dp"
+                                app:cardElevation="2dp"
+                                android:layout_marginBottom="8dp"
+                                app:cardBackgroundColor="@color/input_field_background">
+
+                            <ImageView
+                                android:id="@+id/buyExchangeLogo"
+                                android:layout_width="40dp"
+                                android:layout_height="40dp"
+                                    android:layout_gravity="center"
+                                tools:src="@drawable/binance_logo" />
+                            </com.google.android.material.card.MaterialCardView>
+
+                            <TextView
+                                android:id="@+id/buyExchangeText"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textColor="@color/primary_text"
+                                android:textSize="16sp"
+                                tools:text="Binance" />
+
                     <TextView
-                        android:id="@+id/buyPriceTextView"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Buy"
+                                android:textColor="@color/neon_blue"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+
+                        <!-- Arrow -->
+                        <ImageView
+                            android:layout_width="48dp"
+                            android:layout_height="48dp"
+                            android:src="@drawable/ic_right_arrow"
+                            android:tint="@color/secondary_text"
+                            android:layout_gravity="center" />
+
+                        <!-- Sell Exchange -->
+                        <LinearLayout
                         android:layout_width="0dp"
                         android:layout_height="wrap_content"
-                        android:layout_columnWeight="1"
-                        android:text="Buy Price"
-                        android:textSize="14sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/secondary_text" />
+                            android:layout_weight="1"
+                            android:orientation="vertical"
+                            android:gravity="center">
 
-                    <TextView
-                        android:id="@+id/sellPriceTextView"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_columnWeight="1"
-                        android:text="Sell Price"
-                        android:textSize="14sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/secondary_text" />
+                            <com.google.android.material.card.MaterialCardView
+                                android:layout_width="64dp"
+                                android:layout_height="64dp"
+                                app:cardCornerRadius="32dp"
+                                app:cardElevation="2dp"
+                                android:layout_marginBottom="8dp"
+                                app:cardBackgroundColor="@color/input_field_background">
 
-                    <!-- Buy Fee -->
-                    <TextView
-                        android:id="@+id/buyFeeTextView"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_columnWeight="1"
-                        android:text="Buy Fee"
-                        android:textSize="14sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/secondary_text" />
+                            <ImageView
+                                android:id="@+id/sellExchangeLogo"
+                                android:layout_width="40dp"
+                                android:layout_height="40dp"
+                                    android:layout_gravity="center"
+                                tools:src="@drawable/coinbase_logo" />
+                            </com.google.android.material.card.MaterialCardView>
 
-                    <TextView
-                        android:id="@+id/sellFeeTextView"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_columnWeight="1"
-                        android:text="Sell Fee"
-                        android:textSize="14sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/secondary_text" />
-                </GridLayout>
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
+                            <TextView
+                                android:id="@+id/sellExchangeText"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textColor="@color/primary_text"
+                                android:textSize="16sp"
+                                tools:text="Coinbase" />
 
-        <!-- Trade Simulation Card -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/tradeSimulationCard"
-            android:layout_width="match_parent"
+                            <TextView
+                                android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="4dp"
-            android:clickable="true"
-            android:focusable="true"
-            app:cardBackgroundColor="@color/card_background"
-            app:rippleColor="@color/electric_purple">
+                                android:text="Sell"
+                                android:textColor="@color/success_green"
+                                android:textStyle="bold" />
+                        </LinearLayout>
+                    </LinearLayout>
 
+                    <!-- Price Info Section with Cards -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
+                        android:orientation="horizontal"
+                        android:padding="16dp">
+
+                        <!-- Buy Price Card -->
+                        <com.google.android.material.card.MaterialCardView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:layout_marginEnd="8dp"
+                            app:cardBackgroundColor="@color/input_field_background"
+                            app:cardCornerRadius="12dp"
+                            app:cardElevation="0dp"
+                            app:strokeWidth="1dp"
+                            app:strokeColor="#26FFFFFF">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical"
+                                android:padding="12dp">
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Buy Price"
+                                    android:textColor="@color/secondary_text"
+                                    android:textSize="14sp" />
 
                 <TextView
-                    android:layout_width="match_parent"
+                            android:id="@+id/buyPriceText"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="4dp"
+                                    android:textColor="@color/neon_blue"
+                                    android:textSize="16sp"
+                                    android:textStyle="bold"
+                                    tools:text="40,235.75" />
+                            </LinearLayout>
+                        </com.google.android.material.card.MaterialCardView>
+
+                        <!-- Sell Price Card -->
+                        <com.google.android.material.card.MaterialCardView
+                            android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:text="Trade Simulation"
-                    android:textSize="18sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/primary_text"
-                    android:layout_marginBottom="12dp" />
+                            android:layout_weight="1"
+                            android:layout_marginStart="8dp"
+                            app:cardBackgroundColor="@color/input_field_background"
+                            app:cardCornerRadius="12dp"
+                            app:cardElevation="0dp"
+                            app:strokeWidth="1dp"
+                            app:strokeColor="#26FFFFFF">
+
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:orientation="vertical"
+                                android:padding="12dp">
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Sell Price"
+                                    android:textColor="@color/secondary_text"
+                                    android:textSize="14sp" />
+
+                                <TextView
+                                    android:id="@+id/sellPriceText"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="4dp"
+                                    android:textColor="@color/success_green"
+                                    android:textSize="16sp"
+                                    android:textStyle="bold"
+                                    tools:text="40,421.50" />
+                            </LinearLayout>
+                        </com.google.android.material.card.MaterialCardView>
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Risk Assessment Card -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                app:cardBackgroundColor="@color/card_background"
+                app:cardCornerRadius="24dp"
+                app:cardElevation="4dp"
+                app:strokeWidth="1dp"
+                app:strokeColor="#33FFFFFF">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="24dp">
+
+                        <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Risk Assessment"
+                        android:textColor="@color/primary_text"
+                        android:textSize="18sp"
+                        android:fontFamily="sans-serif-medium"
+                        android:layout_marginBottom="16dp" />
+
+                        <!-- Add this info text about risk scale interpretation -->
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Higher score = lower risk (better)"
+                            android:textColor="@color/secondary_text"
+                            android:textSize="12sp"
+                            android:layout_marginBottom="16dp" />
+
+                    <!-- Risk Level -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:gravity="center_vertical">
-
-                    <com.google.android.material.slider.Slider
-                        android:id="@+id/tradeAmountSlider"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="2"
-                        android:stepSize="100"
-                        android:valueFrom="100"
-                        android:valueTo="10000" />
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical"
-                        android:layout_marginStart="16dp">
+                        android:layout_marginBottom="16dp">
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Expected Profit:"
-                            android:textSize="12sp"
-                            android:textColor="@color/secondary_text" />
+                            android:text="Risk Level:"
+                            android:textColor="@color/secondary_text"
+                            android:textSize="16sp" />
+
+                        <Space
+                            android:layout_width="16dp"
+                            android:layout_height="wrap_content" />
 
                         <TextView
-                            android:id="@+id/expectedProfitTextView"
+                            android:id="@+id/riskLevelText"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:textSize="16sp"
-                            android:textColor="@color/profit_positive"
                             android:textStyle="bold"
-                            tools:text="$125.00" />
+                            android:fontFamily="sans-serif-medium"
+                            tools:text="LOW RISK"
+                            tools:textColor="@color/risk_low" />
+
+                        <Space
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                            android:layout_weight="1" />
+
+                        <View
+                            android:id="@+id/riskIndicator"
+                            android:layout_width="16dp"
+                            android:layout_height="16dp"
+                            android:background="@drawable/circle_indicator"
+                            tools:backgroundTint="@color/risk_low" />
                     </LinearLayout>
+
+                    <!-- Risk Progress Bar -->
+                    <ProgressBar
+                        android:id="@+id/riskProgressBar"
+                        style="@style/Widget.AppCompat.ProgressBar.Horizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="8dp"
+                        android:progressDrawable="@drawable/risk_progress_bg"
+                        android:max="100"
+                        tools:progress="25"
+                        android:layout_marginBottom="24dp" />
+
+                    <!-- Add risk scale labels -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="16dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Higher Risk"
+                            android:textColor="@color/risk_very_high"
+                            android:textSize="12sp" />
+                            
+                        <View
+                            android:layout_width="0dp"
+                            android:layout_height="1dp"
+                            android:layout_weight="1" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Lower Risk"
+                            android:textColor="@color/risk_very_low"
+                            android:textSize="12sp" />
                 </LinearLayout>
 
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Tap to run detailed simulation"
-                    android:textSize="12sp"
-                    android:textColor="@color/secondary_text"
-                    android:layout_marginTop="8dp" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Performance metrics section -->
-        <com.google.android.material.card.MaterialCardView
+                    <!-- Risk Factors Grid -->
+                    <androidx.gridlayout.widget.GridLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            app:cardCornerRadius="8dp"
-            app:cardElevation="2dp">
+                        app:columnCount="2"
+                        app:rowCount="2"
+                        app:useDefaultMargins="true">
+
+                        <!-- Liquidity -->
+                        <com.google.android.material.card.MaterialCardView
+                            android:layout_width="0dp"
+                            app:layout_columnWeight="1"
+                            android:layout_height="wrap_content"
+                            app:cardBackgroundColor="@color/input_field_background"
+                            app:cardCornerRadius="16dp"
+                            app:cardElevation="0dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -277,136 +411,98 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Performance Metrics"
-                    android:textAppearance="?attr/textAppearanceHeadline6"
-                    android:textColor="@color/primary_text"
-                    android:layout_marginBottom="8dp"/>
-
-                <!-- Metrics grid layout -->
-                <androidx.gridlayout.widget.GridLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    app:columnCount="2"
-                    app:rowCount="4"
-                    app:orientation="horizontal">
-
-                    <!-- Estimated time -->
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:text="Est. Completion Time:"
-                        android:textColor="@color/secondary_text"
-                        app:layout_columnWeight="1" />
+                                    android:text="Liquidity"
+                                    android:textColor="@color/secondary_text"
+                                    android:textSize="14sp" />
 
                     <TextView
-                        android:id="@+id/timeEstimateTextView"
-                        android:layout_width="0dp"
+                                    android:id="@+id/liquidityText"
+                                    android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:textColor="@color/primary_text"
-                        android:textStyle="bold"
-                        app:layout_columnWeight="1" />
+                                    android:layout_marginTop="4dp"
+                                    android:textColor="@color/primary_text"
+                                    android:textSize="16sp"
+                                    android:textStyle="bold"
+                                    tools:text="GOOD" />
+                            </LinearLayout>
+                        </com.google.android.material.card.MaterialCardView>
 
-                    <!-- ROI efficiency -->
-                    <TextView
+                        <!-- Volatility -->
+                        <com.google.android.material.card.MaterialCardView
                         android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:text="ROI Efficiency:"
-                        android:textColor="@color/secondary_text"
-                        app:layout_columnWeight="1" />
+                            app:layout_columnWeight="1"
+                            android:layout_height="wrap_content"
+                            app:cardBackgroundColor="@color/input_field_background"
+                            app:cardCornerRadius="16dp"
+                            app:cardElevation="0dp">
 
-                    <TextView
-                        android:id="@+id/roiEfficiencyTextView"
-                        android:layout_width="0dp"
+                    <LinearLayout
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:textColor="@color/primary_text"
-                        android:textStyle="bold"
-                        app:layout_columnWeight="1" />
-
-                    <!-- Volatility -->
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:text="Volatility:"
-                        android:textColor="@color/secondary_text"
-                        app:layout_columnWeight="1" />
+                                android:orientation="vertical"
+                                android:padding="16dp">
 
                     <TextView
-                        android:id="@+id/volatilityTextView"
-                        android:layout_width="0dp"
+                                    android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:textColor="@color/primary_text"
-                        android:textStyle="bold"
-                        app:layout_columnWeight="1" />
-
-                    <!-- Liquidity -->
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:text="Liquidity:"
-                        android:textColor="@color/secondary_text"
-                        app:layout_columnWeight="1" />
+                                    android:text="Volatility"
+                                    android:textColor="@color/secondary_text"
+                                    android:textSize="14sp" />
 
                     <TextView
-                        android:id="@+id/liquidityTextView"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:textColor="@color/primary_text"
-                        android:textStyle="bold"
-                        app:layout_columnWeight="1" />
+                                    android:id="@+id/volatilityText"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="4dp"
+                                    android:textColor="@color/primary_text"
+                                    android:textSize="16sp"
+                                    android:textStyle="bold"
+                                    tools:text="LOW" />
+                            </LinearLayout>
+                        </com.google.android.material.card.MaterialCardView>
 
-                    <!-- Risk score -->
-                    <TextView
+                        <!-- Slippage -->
+                        <com.google.android.material.card.MaterialCardView
                         android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:text="Risk Score:"
-                        android:textColor="@color/secondary_text"
-                        app:layout_columnWeight="1" />
+                            app:layout_columnWeight="1"
+                            android:layout_height="wrap_content"
+                            app:cardBackgroundColor="@color/input_field_background"
+                            app:cardCornerRadius="16dp"
+                            app:cardElevation="0dp">
 
-                    <TextView
-                        android:id="@+id/riskTextView"
-                        android:layout_width="0dp"
+                    <LinearLayout
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:textColor="@color/primary_text"
-                        android:textStyle="bold"
-                        app:layout_columnWeight="1" />
-
-                    <!-- Optimal size -->
-                    <TextView
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:text="Optimal Trade Size:"
-                        android:textColor="@color/secondary_text"
-                        app:layout_columnWeight="1" />
+                                android:orientation="vertical"
+                                android:padding="16dp">
 
                     <TextView
-                        android:id="@+id/optimalSizeTextView"
-                        android:layout_width="0dp"
+                                    android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:textColor="@color/primary_text"
-                        android:textStyle="bold"
-                        app:layout_columnWeight="1" />
-                </androidx.gridlayout.widget.GridLayout>
+                                    android:text="Est. Slippage"
+                                    android:textColor="@color/secondary_text"
+                                    android:textSize="14sp" />
 
-                <!-- Raw data button -->
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/rawDataButton"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="Show Raw Exchange Data"
-                    app:icon="@android:drawable/ic_menu_info_details"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
+                    <TextView
+                            android:id="@+id/slippageText"
+                                    android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                                    android:layout_marginTop="4dp"
+                                    android:textColor="@color/primary_text"
+                                    android:textSize="16sp"
+                                    android:textStyle="bold"
+                                    tools:text="0.12%" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Strategy Suggestions -->
+                        <!-- Execution Time -->
         <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
+                            android:layout_width="0dp"
+                            app:layout_columnWeight="1"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="4dp"
-            app:cardBackgroundColor="@color/card_background">
+                            app:cardBackgroundColor="@color/input_field_background"
+                            app:cardCornerRadius="16dp"
+                            app:cardElevation="0dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -415,110 +511,207 @@
                 android:padding="16dp">
 
                 <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                                    android:text="Execution Time"
+                                    android:textColor="@color/secondary_text"
+                                    android:textSize="14sp" />
+
+                                <TextView
+                                    android:id="@+id/executionTimeText"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="4dp"
+                                    android:textColor="@color/primary_text"
+                                    android:textSize="16sp"
+                                    android:textStyle="bold"
+                                    tools:text="2 min" />
+                            </LinearLayout>
+                        </com.google.android.material.card.MaterialCardView>
+                    </androidx.gridlayout.widget.GridLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Financial Details Card -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="16dp"
+                app:cardBackgroundColor="@color/card_background"
+                app:cardCornerRadius="24dp"
+                app:cardElevation="4dp"
+                app:strokeWidth="1dp"
+                app:strokeColor="#33FFFFFF">
+
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Strategy Suggestions"
-                    android:textSize="18sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/primary_text"
-                    android:layout_marginBottom="12dp" />
+                    android:orientation="vertical"
+                    android:padding="24dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Financial Details"
+                        android:textColor="@color/primary_text"
+                        android:textSize="18sp"
+                        android:fontFamily="sans-serif-medium"
+                        android:layout_marginBottom="16dp" />
+
+                    <!-- Fee Details -->
+                    <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="12dp">
+
+                        <!-- Buy Fee -->
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                                android:text="Buy Fee"
+                                android:textColor="@color/secondary_text"
+                                android:textSize="14sp" />
 
                 <TextView
-                    android:id="@+id/strategyTextView"
+                                android:id="@+id/buyFeeText"
+                                android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                                android:textColor="@color/primary_text"
+                                android:textSize="16sp"
+                                android:layout_marginTop="4dp"
+                                tools:text="0.10%" />
+            </LinearLayout>
+
+                        <!-- Sell Fee -->
+            <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+                            
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Sell Fee"
+                                android:textColor="@color/secondary_text"
+                                android:textSize="14sp" />
+
+                <TextView
+                                android:id="@+id/sellFeeText"
+                                android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                                android:textColor="@color/primary_text"
+                                android:textSize="16sp"
+                                android:layout_marginTop="4dp"
+                                tools:text="0.20%" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <!-- Divider -->
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="#33FFFFFF"
+                        android:layout_marginBottom="12dp" />
+
+                    <!-- Total Cost -->
+                    <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:textSize="14sp"
-                    android:textColor="@color/primary_text"
-                    tools:text="• High profit opportunity: Consider quick execution\n• Binance → Coinbase: Ensure funded accounts on both\n• Estimated execution time: 2m 30s - Plan accordingly\n• Low risk profile: Suitable for larger position sizes" />
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="12dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Position Size"
+                            android:textColor="@color/secondary_text"
+                            android:textSize="16sp" />
+
+                <TextView
+                            android:id="@+id/totalCostText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="@color/primary_text"
+                            android:textSize="16sp"
+                            android:textStyle="bold"
+                            tools:text="$1,000.00" />
+                    </LinearLayout>
+
+                    <!-- Net Profit -->
+                    <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Net Profit (after fees)"
+                            android:textColor="@color/secondary_text"
+                            android:textSize="16sp" />
+
+                        <TextView
+                            android:id="@+id/netProfitText"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="@color/success_green"
+                            android:textSize="16sp"
+                            android:textStyle="bold"
+                            tools:text="0.25%" />
+                    </LinearLayout>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Market Depth Chart -->
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="4dp"
-            app:cardBackgroundColor="@color/card_background">
-
+            <!-- Action Buttons -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="36dp">
 
-                <TextView
-                    android:layout_width="match_parent"
+                <Button
+                    android:id="@+id/refreshButton"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:text="Market Depth"
-                    android:textSize="18sp"
-                    android:textStyle="bold"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="8dp"
+                    android:text="Refresh"
                     android:textColor="@color/primary_text"
-                    android:layout_marginBottom="12dp" />
+                    android:background="@drawable/rounded_border_background"
+                    android:paddingVertical="12dp" />
 
-                <com.github.mikephil.charting.charts.BarChart
-                    android:id="@+id/marketDepthChart"
-                    android:layout_width="match_parent"
-                    android:layout_height="250dp"
-                    android:layout_marginBottom="8dp" />
-
-                <TextView
-                    android:id="@+id/depthChartDescription"
-                    android:layout_width="match_parent"
+                <Button
+                    android:id="@+id/simulateButton"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:textSize="12sp"
-                    android:textColor="@color/secondary_text" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Price History Chart -->
-        <com.google.android.material.card.MaterialCardView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="4dp"
-            app:cardBackgroundColor="@color/card_background">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Price History (24h)"
-                    android:textSize="18sp"
-                    android:textStyle="bold"
+                    android:layout_weight="1"
+                    android:layout_marginStart="8dp"
+                    android:text="Simulate Trade"
                     android:textColor="@color/primary_text"
-                    android:layout_marginBottom="12dp" />
-
-                <com.github.mikephil.charting.charts.LineChart
-                    android:id="@+id/priceHistoryChart"
-                    android:layout_width="match_parent"
-                    android:layout_height="250dp"
-                    android:layout_marginBottom="8dp" />
-
-                <TextView
-                    android:id="@+id/priceChartDescription"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:textSize="12sp"
-                    android:textColor="@color/secondary_text" />
+                    android:background="@drawable/profit_gradient_background"
+                    android:paddingVertical="12dp" />
             </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
 
-        <!-- Execute Button -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/executeButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Execute Arbitrage"
-            android:padding="12dp"
-            android:textSize="16sp"
-            app:cornerRadius="8dp" />
+            <!-- Loading indicator -->
+            <ProgressBar
+                android:id="@+id/loadingProgress"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_gravity="center"
+                android:visibility="gone"
+                tools:visibility="visible" />
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>
+</androidx.coordinatorlayout.widget.CoordinatorLayout> 

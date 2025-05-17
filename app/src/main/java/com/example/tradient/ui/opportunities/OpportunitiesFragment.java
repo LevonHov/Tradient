@@ -15,12 +15,14 @@ import android.widget.ImageButton;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.HorizontalScrollView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.cardview.widget.CardView;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentResultListener;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
@@ -40,6 +42,11 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.slider.RangeSlider;
 import com.google.android.material.slider.Slider;
 
+import com.example.tradient.ui.filter.ArbitrageFilterBottomSheet;
+import com.example.tradient.ui.filter.FilterCriteria;
+import com.example.tradient.ui.filter.FilterBottomSheet;
+import com.example.tradient.ui.filter.FilterDialogFragment;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -50,7 +57,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class OpportunitiesFragment extends Fragment {
+// Remove reference to Filter class
+// import com.example.tradient.model.Filter;
+
+public class OpportunitiesFragment extends Fragment implements FilterBottomSheet.FilterAppliedListener {
 
     private ArbitrageViewModel viewModel;
     private RecyclerView opportunitiesRecyclerView;
@@ -91,6 +101,9 @@ public class OpportunitiesFragment extends Fragment {
     private int maxExecutionTimeMinutes = -1; // -1 means any time
     private float minVolume = 1f;
     private boolean isFilterPanelVisible = false;
+
+    private FloatingActionButton filterFab;
+    private ArbitrageFilterBottomSheet.FilterCriteria currentFilter;
 
     @Nullable
     @Override
@@ -155,6 +168,43 @@ public class OpportunitiesFragment extends Fragment {
 
         // Initialize the data
         viewModel.initialize();
+
+        // Find views
+        filterFab = view.findViewById(R.id.filter_fab);
+        
+        // Set up click listeners
+        if (filterFab != null) {
+            filterFab.setOnClickListener(v -> {
+                if (getActivity() != null && isAdded()) {
+                    try {
+                        showFilterBottomSheet();
+                    } catch (Exception e) {
+                        Log.e("OpportunitiesFragment", "Error showing filter bottom sheet: " + e.getMessage(), e);
+                        Toast.makeText(getContext(), "Unable to show filters", Toast.LENGTH_SHORT).show();
+                    }
+                }
+            });
+        }
+        
+        // Initialize with empty filter
+        currentFilter = new ArbitrageFilterBottomSheet.FilterCriteria();
+
+        // Set up fragment result listener for filter results
+        getParentFragmentManager().setFragmentResultListener("filterRequestKey", getViewLifecycleOwner(), 
+            (requestKey, result) -> {
+                Log.d("OpportunitiesFragment", "Filter results received!");
+                
+                // Extract filter criteria from result bundle
+                FilterCriteria criteria = result.getParcelable("filterCriteria");
+                if (criteria != null) {
+                    // Apply the filter criteria
+                    // For now, just log the received criteria
+                    Log.d("OpportunitiesFragment", "Received filter criteria: " + criteria.toString());
+                    
+                    // TODO: Apply the criteria to filter your data
+                    // applyFilterCriteria(criteria);
+                }
+            });
     }
     
     private void setupSearchFunctionality() {
@@ -182,9 +232,26 @@ public class OpportunitiesFragment extends Fragment {
         
         // Configure filter button
         filterButton.setOnClickListener(v -> {
-            // Toggle the filter chips visibility for a simple implementation
-            boolean isVisible = filterChipsScrollView.getVisibility() == View.VISIBLE;
-            filterChipsScrollView.setVisibility(isVisible ? View.GONE : View.VISIBLE);
+            try {
+                // Create and show the new FilterDialogFragment
+                FilterDialogFragment filterDialog = new FilterDialogFragment();
+                
+                // Pass any existing filter criteria if needed
+                if (currentFilter != null) {
+                    Bundle args = new Bundle();
+                    args.putParcelable("current_filter", currentFilter);
+                    filterDialog.setArguments(args);
+                }
+                
+                // Use the appropriate FragmentManager
+                // Use getChildFragmentManager() if FilterDialogFragment should be a child of this fragment
+                // Use getParentFragmentManager() if FilterDialogFragment should be at the same level as this fragment
+                filterDialog.show(getParentFragmentManager(), "FilterDialog");
+            } catch (Exception e) {
+                Log.e("OpportunitiesFragment", "Error showing filter dialog: " + e.getMessage(), e);
+                // Show a friendly error message to the user
+                Toast.makeText(requireContext(), "Could not open filter dialog", Toast.LENGTH_SHORT).show();
+            }
         });
     }
     
@@ -974,5 +1041,129 @@ public class OpportunitiesFragment extends Fragment {
         }
         
         return filteredList;
+    }
+
+    /**
+     * Shows the filter bottom sheet dialog
+     */
+    private void showFilterBottomSheet() {
+        if (getActivity() != null && isAdded()) {
+            // Ensure currentFilter is not null before passing
+            if (currentFilter == null) {
+                currentFilter = new ArbitrageFilterBottomSheet.FilterCriteria();
+            }
+            ArbitrageFilterBottomSheet bottomSheet = ArbitrageFilterBottomSheet.newInstance(currentFilter);
+            bottomSheet.setFilterListener(new ArbitrageFilterBottomSheet.FilterListener() {
+                @Override
+                public void onFiltersApplied(ArbitrageFilterBottomSheet.FilterCriteria filters) {
+                    if (filters != null) {
+                        currentFilter = filters;
+                        applyFilters();
+                        updateFilterFabAppearance();
+                        Log.d("OpportunitiesFragment", "Filters applied: " + filters.toString());
+                    } else {
+                        Log.d("OpportunitiesFragment", "Received null filters");
+                    }
+                }
+            });
+            bottomSheet.show(getParentFragmentManager(), bottomSheet.getTag());
+        }
+    }
+    
+    /**
+     * Callback when filters are applied
+     */
+    @Override
+    public void onFiltersApplied(FilterCriteria filter) {
+        // This method seems to be for FilterBottomSheet (a different filter UI)
+        // We need to decide if we keep both or consolidate.
+        // For now, let's assume currentFilter (ArbitrageFilterBottomSheet.FilterCriteria) is the primary one.
+        // If 'filter' (com.example.tradient.ui.filter.FilterCriteria) is still needed,
+        // we might need to convert or handle it separately.
+
+        // Example: if (filter instanceof com.example.tradient.ui.filter.FilterCriteria) { ... }
+        // Or, if ArbitrageFilterBottomSheet is the sole source of truth for filtering:
+        // this.currentFilter = convertToArbitrageFilterCriteria(filter);
+
+        Log.d("OpportunitiesFragment", "onFiltersApplied (FilterBottomSheet.FilterAppliedListener): " + filter.toString());
+        // If you need to update the main currentFilter used by ArbitrageFilterBottomSheet:
+        // You might need a conversion method if the FilterCriteria types are different and incompatible.
+        // For now, just logging. Consider if currentFilter should be updated here.
+        // applyFilters();
+        // updateFilterFabAppearance();
+    }
+    
+    /**
+     * Updates the filter FAB to show if filters are active
+     */
+    private void updateFilterFabAppearance() {
+        if (currentFilter.hasActiveFilters()) {
+            // Show active state
+            filterFab.setImageResource(R.drawable.ic_filter_active);
+            // You might also want to add a badge or change background color
+        } else {
+            // Show inactive state
+            filterFab.setImageResource(R.drawable.ic_filter);
+        }
+    }
+    
+    /**
+     * Applies the current filters to the data
+     */
+    private void applyFilters() {
+        filterOpportunities();
+        updateFilterInfo();
+    }
+
+    private void updateFilterInfo() {
+        if (filterChipGroup == null) return; // Ensure views are initialized
+
+        StringBuilder filterInfo = new StringBuilder();
+        boolean hasActiveFilters = false;
+
+        if (currentFilter.getMinProfitPercentage() > 0) {
+            filterInfo.append("Min profit: $").append(currentFilter.getMinProfitPercentage()).append(", ");
+            hasActiveFilters = true;
+        }
+        if (currentFilter.getMaxProfitPercentage() < 50.0) {
+            filterInfo.append("Max profit: $").append(currentFilter.getMaxProfitPercentage()).append(", ");
+            hasActiveFilters = true;
+        }
+        // TODO: Add other active filters from currentFilter (ArbitrageFilterBottomSheet.FilterCriteria)
+        // Example:
+        // if (currentFilter.getMaxSlippagePercentage() < 2.0) {
+        //     filterInfo.append("Max Slippage: ").append(currentFilter.getMaxSlippagePercentage()).append("%, ");
+        //     hasActiveFilters = true;
+        // }
+
+        // The getCryptocurrencies method is not available on ArbitrageFilterBottomSheet.FilterCriteria
+        // Commenting out for now.
+        // if (!currentFilter.getCryptocurrencies().isEmpty()) {
+        // filterInfo.append("Cryptos: ").append(currentFilter.getCryptocurrencies());
+        // hasActiveFilters = true;
+        // }
+
+        filterChipGroup.removeAllViews(); // Clear existing chips
+
+        if (hasActiveFilters) {
+            // Remove trailing comma and space
+            if (filterInfo.length() > 2 && filterInfo.substring(filterInfo.length() - 2).equals(", ")) {
+                filterInfo.setLength(filterInfo.length() - 2);
+            }
+
+            Chip filterChip = new Chip(getContext());
+            filterChip.setText(filterInfo.toString());
+            filterChip.setCloseIconVisible(true);
+            filterChip.setOnCloseIconClickListener(v -> {
+                // Resetting to default ArbitrageFilterBottomSheet.FilterCriteria
+                currentFilter = new ArbitrageFilterBottomSheet.FilterCriteria();
+                applyFilters();
+                updateFilterFabAppearance();
+            });
+            filterChipGroup.addView(filterChip);
+            filterChipsScrollView.setVisibility(View.VISIBLE);
+        } else {
+            filterChipsScrollView.setVisibility(View.GONE);
+        }
     }
 } 

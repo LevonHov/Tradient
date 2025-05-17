@@ -8,12 +8,15 @@ import android.widget.TextView;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.tradient.R;
 import com.example.tradient.data.model.ArbitrageOpportunity;
 import com.example.tradient.data.model.RiskAssessment;
 import com.example.tradient.domain.risk.EnhancedRiskService;
+import com.example.tradient.domain.risk.UnifiedRiskCalculator;
+import com.example.tradient.domain.risk.RiskEnsurer;
 
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -110,52 +113,76 @@ public class ArbitrageOpportunityAdapter extends RecyclerView.Adapter<ArbitrageO
         holder.timeText.setText("Time: --");
         holder.roiEfficiencyText.setText("ROI/h: --");
         
-        Log.d(TAG, "Starting risk assessment calculation for " + getPairString(opportunity));
-        
-        // Calculate risk assessment using real-time data
-        riskService.calculateRisk(opportunity)
-            .thenAcceptAsync(riskAssessment -> {
-                if (riskAssessment != null) {
-                    Log.d(TAG, "Risk assessment completed for " + getPairString(opportunity) + 
-                          ": Risk=" + riskAssessment.getRiskLevel() + 
-                          ", Slip=" + String.format("%.2f%%", riskAssessment.getSlippageEstimate() * 100) +
-                          ", Liq=" + String.format("%.2f", riskAssessment.getLiquidityScore()));
-                    
-                    // Update UI with risk assessment data
-                    updateRiskDisplay(holder, riskAssessment);
-                    
-                    // Try to store risk assessment with opportunity using reflection
-                    try {
-                        // Store risk assessment using reflection
-                        try {
-                            java.lang.reflect.Field field = 
-                                ArbitrageOpportunity.class.getDeclaredField("riskAssessment");
-                            field.setAccessible(true);
-                            field.set(opportunity, riskAssessment);
-                            Log.d(TAG, "Successfully stored risk assessment in opportunity object");
-                        } catch (NoSuchFieldException e) {
-                            // Try with method
-                            try {
-                                java.lang.reflect.Method setMethod = 
-                                    ArbitrageOpportunity.class.getMethod("setRiskAssessment", RiskAssessment.class);
-                                setMethod.invoke(opportunity, riskAssessment);
-                                Log.d(TAG, "Successfully stored risk assessment using setter method");
-                            } catch (Exception ex) {
-                                // Just log error - UI is already updated
-                                Log.w(TAG, "Could not store risk assessment in object: " + ex.getMessage());
-                            }
-                        }
-                    } catch (Exception e) {
-                        Log.w(TAG, "Error storing risk assessment: " + e.getMessage());
+        // Use RiskEnsurer to get consistent risk values
+        try {
+            // First check if opportunity already has a valid risk assessment
+            RiskAssessment existingRisk = opportunity.getRiskAssessment();
+            if (existingRisk != null && existingRisk.isValid()) {
+                Log.d(TAG, "Using existing risk assessment for " + getPairString(opportunity));
+                // Ensure consistent risk values
+                RiskEnsurer.ensureRiskValues(opportunity, false);
+                updateRiskDisplay(holder, existingRisk);
+                return;
+            }
+            
+            Log.d(TAG, "Starting risk assessment calculation for " + getPairString(opportunity));
+            
+            // Calculate fresh risk assessment asynchronously
+            riskService.calculateRisk(opportunity)
+                .thenAcceptAsync(riskAssessment -> {
+                    if (riskAssessment != null) {
+                        Log.d(TAG, "Risk assessment completed for " + getPairString(opportunity) + 
+                              ": Score=" + riskAssessment.getOverallRiskScore() + 
+                              ", Slip=" + String.format("%.2f%%", riskAssessment.getSlippageEstimate() * 100) +
+                              ", Liq=" + String.format("%.2f", riskAssessment.getLiquidityScore()));
+                        
+                        // Ensure consistent risk values
+                        RiskEnsurer.ensureRiskValues(opportunity, false);
+                        
+                        // Update UI with risk assessment data on the main thread
+                        androidx.core.content.ContextCompat.getMainExecutor(holder.itemView.getContext()).execute(() -> {
+                            updateRiskDisplay(holder, riskAssessment);
+                        });
+                    } else {
+                        Log.w(TAG, "Risk assessment returned null for " + getPairString(opportunity));
+                        
+                        // Create an unknown state risk assessment
+                        RiskAssessment unknownAssessment = RiskAssessment.createUnknownState();
+                        opportunity.setRiskAssessment(unknownAssessment);
+                        
+                        // Update UI on the main thread
+                        androidx.core.content.ContextCompat.getMainExecutor(holder.itemView.getContext()).execute(() -> {
+                            updateRiskDisplay(holder, unknownAssessment);
+                        });
                     }
-                } else {
-                    Log.w(TAG, "Risk assessment returned null for " + getPairString(opportunity));
-                    // Set default values for null risk assessment
-                    holder.riskText.setText("UNKNOWN");
-                    holder.riskText.setTextColor(COLOR_RISK_UNKNOWN);
-                    holder.riskProgress.setProgress(0);
-                }
-            }, Executors.newSingleThreadExecutor());
+                }, Executors.newSingleThreadExecutor())
+                .exceptionally(ex -> {
+                    // Log the full exception
+                    Log.e(TAG, "Error calculating risk assessment for " + getPairString(opportunity), ex);
+                    
+                    // Create an error state risk assessment
+                    RiskAssessment errorAssessment = RiskAssessment.createErrorState(ex);
+                    opportunity.setRiskAssessment(errorAssessment);
+                    
+                    // Update UI on the main thread
+                    androidx.core.content.ContextCompat.getMainExecutor(holder.itemView.getContext()).execute(() -> {
+                        updateRiskDisplay(holder, errorAssessment);
+                    });
+                    
+                    return null;
+                });
+        } catch (Exception e) {
+            Log.e(TAG, "Error loading risk assessment: " + e.getMessage(), e);
+            
+            // Create an error state risk assessment
+            RiskAssessment errorAssessment = RiskAssessment.createErrorState(e);
+            opportunity.setRiskAssessment(errorAssessment);
+            
+            // Update UI on the main thread
+            androidx.core.content.ContextCompat.getMainExecutor(holder.itemView.getContext()).execute(() -> {
+                updateRiskDisplay(holder, errorAssessment);
+            });
+        }
     }
     
     /**
@@ -182,44 +209,81 @@ public class ArbitrageOpportunityAdapter extends RecyclerView.Adapter<ArbitrageO
      * Update risk display with assessment data
      */
     private void updateRiskDisplay(ViewHolder holder, RiskAssessment riskAssessment) {
-        // Set risk level display
-        String riskLevel = riskAssessment.getRiskLevel();
-        int riskColor;
+        // Use UnifiedRiskCalculator for consistent risk level text and color
+        UnifiedRiskCalculator riskCalculator = UnifiedRiskCalculator.getInstance();
         
-        switch (riskLevel) {
-            case RiskAssessment.RISK_LEVEL_LOW:
-                riskColor = COLOR_RISK_LOW;
-                break;
-            case RiskAssessment.RISK_LEVEL_MEDIUM:
-                riskColor = COLOR_RISK_MEDIUM;
-                break;
-            case RiskAssessment.RISK_LEVEL_HIGH:
-                riskColor = COLOR_RISK_HIGH;
-                break;
-            case RiskAssessment.RISK_LEVEL_EXTREME:
-                riskColor = COLOR_RISK_EXTREME;
-                break;
-            default:
-                riskColor = COLOR_RISK_UNKNOWN;
-                break;
-        }
+        // Get risk score from assessment
+        double riskScore = riskAssessment.getOverallRiskScore();
         
+        // Get risk level and color from UnifiedRiskCalculator
+        String riskLevel = riskCalculator.getRiskLevelText(riskScore);
+        int riskColor = riskCalculator.getRiskColor(riskScore);
+        
+        // Update UI with consistent risk information
         holder.riskText.setText(riskLevel);
         holder.riskText.setTextColor(riskColor);
         
-        // Set risk progress bar
-        holder.riskProgress.setProgress(riskAssessment.getNormalizedRiskScore());
+        // Set risk progress bar (0-100)
+        holder.riskProgress.setProgress((int)(riskScore * 100));
         
         // Set slippage display
         double slippagePercent = riskAssessment.getSlippageEstimate() * 100.0;
         holder.slippageText.setText(String.format("Slip: %.1f%%", slippagePercent));
         
         // Set time display
-        holder.timeText.setText("Time: " + riskAssessment.getFormattedExecutionTime());
+        double executionTime = riskAssessment.getExecutionTimeEstimate();
+        String timeDisplay = formatExecutionTime(executionTime);
+        holder.timeText.setText("Time: " + timeDisplay);
         
         // Set ROI efficiency
-        double roiHourly = riskAssessment.getRoiEfficiency() * 100.0;
+        double roiHourly = riskAssessment.getRoiEfficiency();
+        // Ensure ROI is displayed correctly
+        if (Double.isNaN(roiHourly) || roiHourly <= 0) {
+            // Calculate ROI per hour if not available
+            if (executionTime > 0) {
+                // Find the opportunity in the list that matches this assessment
+                double profitPercent = 0;
+                for (ArbitrageOpportunity opportunity : arbitrageOpportunities) {
+                    // We'll use the first opportunity we find with this assessment
+                    if (opportunity != null && opportunity.getRiskAssessment() == riskAssessment) {
+                        try {
+                            profitPercent = opportunity.getProfitPercent();
+                            break;
+                        } catch (Exception e) {
+                            // Ignore and continue with 0
+                        }
+                    }
+                }
+                roiHourly = (profitPercent / executionTime) * 60.0;
+            } else {
+                roiHourly = 0;
+            }
+        }
         holder.roiEfficiencyText.setText(String.format("ROI/h: %.1f%%", roiHourly));
+    }
+    
+    /**
+     * Format execution time nicely
+     * @param minutes Execution time in minutes
+     * @return Formatted time string
+     */
+    private String formatExecutionTime(double minutes) {
+        // Safety check for invalid values
+        if (Double.isNaN(minutes) || Double.isInfinite(minutes) || minutes <= 0) {
+            return "3.0 min"; // Default value
+        }
+        
+        if (minutes < 1.0) {
+            // Show as seconds for very short times
+            int seconds = (int)(minutes * 60.0);
+            return seconds + " sec";
+        } else if (minutes < 60.0) {
+            // Show as minutes for medium times
+            return String.format("%.1f min", minutes);
+        } else {
+            // Show as hours for long times
+            return String.format("%.1f hrs", minutes / 60.0);
+        }
     }
     
     /**

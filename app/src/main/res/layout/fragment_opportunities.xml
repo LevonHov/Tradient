@@ -594,4 +594,15 @@
         </LinearLayout>
     </androidx.cardview.widget.CardView>
 
+    <!-- Add floating action button for filters at the bottom right -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/filter_fab"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        android:contentDescription="@string/filter_opportunities"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:srcCompat="@drawable/ic_filter" />
+
 </androidx.constraintlayout.widget.ConstraintLayout> 

@@ -51,4 +51,6 @@
     <string name="hours">hrs</string>
     <string name="same_exchange">Same Exchange</string>
     <string name="cross_exchange">Cross Exchange</string>
+    <string name="filter_opportunities">Filter opportunities</string>
+    <string name="active_filters">Active Filters</string>
 </resources>

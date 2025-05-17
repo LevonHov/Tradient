@@ -8,6 +8,9 @@
     <color name="neon_blue">#0052FF</color>
     <color name="dark_blue_variant">#003CBB</color>
     <color name="primary">@color/neon_blue</color>
+    <color name="primary_dark">#171923</color>
+    <color name="accent">#00C087</color>
+    <color name="accent_20">#3300C087</color>
     
     <!-- Secondary Colors -->
     <color name="electric_purple">#9945FF</color>
@@ -20,6 +23,27 @@
     <color name="profit_positive">#00C087</color>
     <color name="profit_negative">#FF3B30</color>
     <color name="profit_neutral">#FFC107</color>
+    
+    <!-- Risk Indicator Colors -->
+    <color name="risk_very_low">#00C087</color>
+    <color name="risk_low">#4CAF50</color>
+    <color name="risk_medium">#FFC107</color>
+    <color name="risk_high">#FF9332</color>
+    <color name="risk_very_high">#FF3B30</color>
+    
+    <!-- Volatility Indicator Colors -->
+    <color name="volatility_very_low">#00C087</color>
+    <color name="volatility_low">#4CAF50</color>
+    <color name="volatility_medium">#FFC107</color>
+    <color name="volatility_high">#FF9332</color>
+    <color name="volatility_very_high">#FF3B30</color>
+    
+    <!-- Liquidity Indicator Colors -->
+    <color name="liquidity_very_low">#FF3B30</color>
+    <color name="liquidity_low">#FF9332</color>
+    <color name="liquidity_medium">#FFC107</color>
+    <color name="liquidity_high">#4CAF50</color>
+    <color name="liquidity_very_high">#00C087</color>
     
     <!-- Neutrals -->
     <color name="background">#121621</color>
@@ -80,4 +104,49 @@
     <color name="md_theme_light_surfaceTint">@color/neon_blue</color>
     <color name="md_theme_light_outlineVariant">@color/neutral_gray</color>
     <color name="md_theme_light_scrim">@color/black</color>
+    
+    <!-- Widget colors -->
+    <color name="widget_background">#1E2130</color>
+    <color name="widget_border">#252836</color>
+    <color name="widget_text_title">#8B93B0</color>
+    <color name="widget_text_value">#FFFFFF</color>
+    
+    <!-- Change indicators -->
+    <color name="positive_change">#00C087</color>
+    <color name="negative_change">#FF5C5C</color>
+    <color name="positive_change_background">#1A00C087</color>
+    <color name="negative_change_background">#1AFF5C5C</color>
+    
+    <!-- Filter UI specific colors -->
+    <color name="filter_card_bg">#1E2130</color>
+    <color name="filter_card_stroke">#252836</color>
+    <color name="filter_text_primary">#FFFFFF</color>
+    <color name="filter_text_secondary">#8B93B0</color>
+    <color name="filter_chip_bg_selected">#3300C087</color>
+    <color name="filter_chip_bg_unselected">#252836</color>
+    <color name="filter_chip_text_selected">#FFFFFF</color>
+    <color name="filter_chip_text_unselected">#8B93B0</color>
+    
+    <!-- Search field colors -->
+    <color name="search_bg">#252836</color>
+    <color name="text_input_box_stroke">#8B93B0</color>
+    
+    <!-- Chip states -->
+    <color name="chip_background_color">@color/chip_bg_unselected</color>
+    <color name="chip_bg_selected">#3300C087</color>
+    <color name="chip_bg_unselected">#252836</color>
+    <color name="chip_stroke_selected">@color/accent</color>
+    <color name="chip_stroke_unselected">#3A3F55</color>
+    <color name="chip_text_selected">#FFFFFF</color>
+    <color name="chip_text_unselected">#8B93B0</color>
+    <color name="chip_icon_selected">@color/accent</color>
+    <color name="chip_icon_unselected">#8B93B0</color>
+    
+    <!-- Risk level chips -->
+    <color name="low_risk">#00C087</color>
+    <color name="medium_risk">#FFBB33</color>
+    <color name="high_risk">#FF5C5C</color>
+    <color name="low_risk_bg">#1A00C087</color>
+    <color name="medium_risk_bg">#1AFFBB33</color>
+    <color name="high_risk_bg">#1AFF5C5C</color>
 </resources>

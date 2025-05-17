@@ -6,4 +6,8 @@
     </style>
 
     <style name="Theme.Tradient" parent="Base.Theme.Tradient" />
+    
+    <!-- App bar styles -->
+    <style name="Theme.Tradient.AppBarOverlay" parent="ThemeOverlay.AppCompat.Dark.ActionBar" />
+    <style name="Theme.Tradient.PopupOverlay" parent="ThemeOverlay.AppCompat.Light" />
 </resources>

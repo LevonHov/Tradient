@@ -423,6 +423,15 @@ public class ArbitrageOpportunity implements Parcelable {
     }
 
     /**
+     * Sets the risk score for this arbitrage opportunity.
+     * 
+     * @param riskScore Risk score (0-1, higher is better/less risky)
+     */
+    public void setRiskScore(double riskScore) {
+        this.riskScore = riskScore;
+    }
+
+    /**
      * Get the liquidity assessment.
      *
      * @return The liquidity score
@@ -432,12 +441,30 @@ public class ArbitrageOpportunity implements Parcelable {
     }
 
     /**
+     * Sets the liquidity score for this arbitrage opportunity.
+     * 
+     * @param liquidity Liquidity score (0-1, higher is better)
+     */
+    public void setLiquidity(double liquidity) {
+        this.liquidity = liquidity;
+    }
+
+    /**
      * Get the volatility assessment.
      *
      * @return The volatility score
      */
     public double getVolatility() {
         return volatility;
+    }
+
+    /**
+     * Sets the volatility score for this arbitrage opportunity.
+     * 
+     * @param volatility Volatility score (0-1, higher is better/less volatile)
+     */
+    public void setVolatility(double volatility) {
+        this.volatility = volatility;
     }
 
     /**
@@ -581,6 +608,11 @@ public class ArbitrageOpportunity implements Parcelable {
         return slippage;
     }
 
+    /**
+     * Sets the slippage value for this arbitrage opportunity.
+     * 
+     * @param slippage Slippage value (usually a small decimal, e.g., 0.01 for 1%)
+     */
     public void setSlippage(double slippage) {
         this.slippage = slippage;
     }
@@ -772,47 +804,145 @@ public class ArbitrageOpportunity implements Parcelable {
 
     // Constructor used for Parcel
     protected ArbitrageOpportunity(Parcel in) {
-        pair = in.readParcelable(TradingPair.class.getClassLoader());
-        exchangeBuy = in.readString();
-        exchangeSell = in.readString();
-        potentialProfit = in.readDouble();
-        normalizedSymbol = in.readString();
-        symbolBuy = in.readString();
-        symbolSell = in.readString();
-        buyPrice = in.readDouble();
-        sellPrice = in.readDouble();
-        profitPercent = in.readDouble();
-        successfulArbitragePercent = in.readDouble();
-        buyFeePercentage = in.readDouble();
-        sellFeePercentage = in.readDouble();
-        isBuyMaker = in.readByte() != 0;
-        isSellMaker = in.readByte() != 0;
-        buySlippage = in.readDouble();
-        sellSlippage = in.readDouble();
-        buyTicker = in.readParcelable(Ticker.class.getClassLoader());
-        sellTicker = in.readParcelable(Ticker.class.getClassLoader());
-        priceDifferencePercentage = in.readDouble();
-        netProfitPercentage = in.readDouble();
-        riskScore = in.readDouble();
-        liquidity = in.readDouble();
-        volatility = in.readDouble();
-        isViable = in.readByte() != 0;
-        long tmpTimestamp = in.readLong();
-        timestamp = tmpTimestamp == -1 ? null : new Date(tmpTimestamp);
-        executed = in.readByte() != 0;
-        fees = in.readDouble();
-        slippage = in.readDouble();
-        estimatedTimeMinutes = in.readDouble();
-        roiEfficiency = in.readDouble();
-        liquidityFactor = in.readDouble();
-        buyExchangeLiquidity = in.readDouble();
-        sellExchangeLiquidity = in.readDouble();
-        isTimeSensitive = in.readByte() != 0;
-        volume = in.readDouble();
-        orderBookDepth = in.readDouble();
-        priceVolatility = in.readDouble();
-        totalSlippagePercentage = in.readDouble();
-        riskAssessment = in.readParcelable(RiskAssessment.class.getClassLoader());
+        try {
+            // Read basic fields with null safety
+            pair = in.readParcelable(TradingPair.class.getClassLoader());
+            exchangeBuy = in.readString();
+            exchangeSell = in.readString();
+            potentialProfit = in.readDouble();
+            normalizedSymbol = in.readString();
+            symbolBuy = in.readString();
+            symbolSell = in.readString();
+            
+            // Read numeric fields with validation
+            buyPrice = in.readDouble();
+            if (Double.isNaN(buyPrice) || buyPrice <= 0) buyPrice = 0.0001;
+            
+            sellPrice = in.readDouble();
+            if (Double.isNaN(sellPrice) || sellPrice <= 0) sellPrice = 0.0001;
+            
+            profitPercent = in.readDouble();
+            if (Double.isNaN(profitPercent)) profitPercent = 0.0;
+            
+            successfulArbitragePercent = in.readDouble();
+            if (Double.isNaN(successfulArbitragePercent)) successfulArbitragePercent = 0.0;
+            
+            buyFeePercentage = in.readDouble();
+            if (Double.isNaN(buyFeePercentage) || buyFeePercentage < 0) buyFeePercentage = 0.1;
+            
+            sellFeePercentage = in.readDouble();
+            if (Double.isNaN(sellFeePercentage) || sellFeePercentage < 0) sellFeePercentage = 0.1;
+            
+            isBuyMaker = in.readByte() != 0;
+            isSellMaker = in.readByte() != 0;
+            
+            buySlippage = in.readDouble();
+            if (Double.isNaN(buySlippage) || buySlippage < 0) buySlippage = 0.001;
+            
+            sellSlippage = in.readDouble();
+            if (Double.isNaN(sellSlippage) || sellSlippage < 0) sellSlippage = 0.001;
+            
+            // Read complex objects with null safety
+            buyTicker = in.readParcelable(Ticker.class.getClassLoader());
+            sellTicker = in.readParcelable(Ticker.class.getClassLoader());
+            
+            // Read more numeric fields with validation
+            priceDifferencePercentage = in.readDouble();
+            if (Double.isNaN(priceDifferencePercentage)) priceDifferencePercentage = 0.0;
+            
+            netProfitPercentage = in.readDouble();
+            if (Double.isNaN(netProfitPercentage)) netProfitPercentage = 0.0;
+            
+            riskScore = in.readDouble();
+            if (Double.isNaN(riskScore) || riskScore < 0 || riskScore > 1) riskScore = 0.5;
+            
+            liquidity = in.readDouble();
+            if (Double.isNaN(liquidity) || liquidity < 0 || liquidity > 1) liquidity = 0.5;
+            
+            volatility = in.readDouble();
+            if (Double.isNaN(volatility) || volatility < 0 || volatility > 1) volatility = 0.5;
+            
+            isViable = in.readByte() != 0;
+            
+            long tmpTimestamp = in.readLong();
+            timestamp = tmpTimestamp == -1 ? new Date() : new Date(tmpTimestamp);
+            
+            executed = in.readByte() != 0;
+            
+            fees = in.readDouble();
+            if (Double.isNaN(fees) || fees < 0) fees = 0.0;
+            
+            slippage = in.readDouble();
+            if (Double.isNaN(slippage) || slippage < 0) slippage = 0.001;
+            
+            estimatedTimeMinutes = in.readDouble();
+            if (Double.isNaN(estimatedTimeMinutes) || estimatedTimeMinutes <= 0) estimatedTimeMinutes = 3.0;
+            
+            roiEfficiency = in.readDouble();
+            if (Double.isNaN(roiEfficiency)) roiEfficiency = 0.0;
+            
+            liquidityFactor = in.readDouble();
+            if (Double.isNaN(liquidityFactor)) liquidityFactor = 0.5;
+            
+            buyExchangeLiquidity = in.readDouble();
+            if (Double.isNaN(buyExchangeLiquidity)) buyExchangeLiquidity = 0.5;
+            
+            sellExchangeLiquidity = in.readDouble();
+            if (Double.isNaN(sellExchangeLiquidity)) sellExchangeLiquidity = 0.5;
+            
+            isTimeSensitive = in.readByte() != 0;
+            
+            volume = in.readDouble();
+            if (Double.isNaN(volume) || volume < 0) volume = 0.0;
+            
+            orderBookDepth = in.readDouble();
+            if (Double.isNaN(orderBookDepth) || orderBookDepth < 0) orderBookDepth = 0.0;
+            
+            priceVolatility = in.readDouble();
+            if (Double.isNaN(priceVolatility) || priceVolatility < 0) priceVolatility = 0.0;
+            
+            totalSlippagePercentage = in.readDouble();
+            if (Double.isNaN(totalSlippagePercentage) || totalSlippagePercentage < 0) totalSlippagePercentage = 0.001;
+            
+            // Ensure we have a valid risk assessment
+            riskAssessment = in.readParcelable(RiskAssessment.class.getClassLoader());
+            if (riskAssessment == null) {
+                riskAssessment = new RiskAssessment();
+                riskAssessment.setOverallRiskScore(riskScore);
+                riskAssessment.setLiquidityScore(liquidity);
+                riskAssessment.setVolatilityScore(volatility);
+                riskAssessment.setSlippageEstimate(totalSlippagePercentage);
+                riskAssessment.setBuyFeePercentage(buyFeePercentage);
+                riskAssessment.setSellFeePercentage(sellFeePercentage);
+                riskAssessment.setExecutionTimeEstimate(estimatedTimeMinutes);
+            }
+        } catch (Exception e) {
+            // Provide safe defaults if anything goes wrong with parcel reading
+            Log.e("ArbitrageOpportunity", "Error reading from parcel", e);
+            
+            // Set default values for critical fields
+            if (timestamp == null) timestamp = new Date();
+            if (normalizedSymbol == null) normalizedSymbol = "UNKNOWN/UNKNOWN";
+            if (symbolBuy == null) symbolBuy = normalizedSymbol;
+            if (symbolSell == null) symbolSell = normalizedSymbol;
+            if (exchangeBuy == null) exchangeBuy = "Unknown";
+            if (exchangeSell == null) exchangeSell = "Unknown";
+            if (buyPrice <= 0) buyPrice = 0.0001;
+            if (sellPrice <= 0) sellPrice = 0.0001;
+            if (Double.isNaN(riskScore) || riskScore <= 0) riskScore = 0.5;
+            if (Double.isNaN(liquidity) || liquidity <= 0) liquidity = 0.5;
+            if (Double.isNaN(volatility) || volatility <= 0) volatility = 0.5;
+            if (Double.isNaN(estimatedTimeMinutes) || estimatedTimeMinutes <= 0) estimatedTimeMinutes = 3.0;
+            
+            // Create risk assessment if it doesn't exist
+            if (riskAssessment == null) {
+                riskAssessment = new RiskAssessment();
+                riskAssessment.setOverallRiskScore(0.5);
+                riskAssessment.setLiquidityScore(0.5);
+                riskAssessment.setVolatilityScore(0.5);
+                riskAssessment.setExecutionTimeEstimate(3.0);
+            }
+        }
     }
 
     @Override
@@ -953,25 +1083,115 @@ public class ArbitrageOpportunity implements Parcelable {
     }
 
     /**
-     * Get the risk assessment for this opportunity
-     * @return The risk assessment object, or null if not available
+     * Get the risk assessment for this opportunity.
+     * If no risk assessment has been set, create a default one.
+     *
+     * @return The risk assessment for this opportunity
      */
     public RiskAssessment getRiskAssessment() {
+        if (riskAssessment == null) {
+            riskAssessment = createDefaultRiskAssessment();
+        }
         return riskAssessment;
     }
     
     /**
-     * Set the risk assessment for this opportunity
+     * Set the risk assessment for this opportunity.
+     * This also updates related fields in the opportunity.
+     *
      * @param riskAssessment The risk assessment to set
      */
     public void setRiskAssessment(RiskAssessment riskAssessment) {
         this.riskAssessment = riskAssessment;
-        // Update legacy fields for backward compatibility
+        
+        // Update related fields from the risk assessment
         if (riskAssessment != null) {
+            // Make sure all risk-related fields are consistently applied from assessment
+            // This prevents risk values from appearing different across views
+            
+            // Set core risk metrics
             this.riskScore = riskAssessment.getOverallRiskScore();
             this.liquidity = riskAssessment.getLiquidityScore();
             this.volatility = riskAssessment.getVolatilityScore();
+            this.slippage = riskAssessment.getSlippageRisk();
+            
+            // Set derived metrics
+            this.totalSlippagePercentage = riskAssessment.getSlippageEstimate();
+            
+            // Update fee information if available in assessment
+            if (riskAssessment.getBuyFeePercentage() > 0) {
+                this.buyFeePercentage = riskAssessment.getBuyFeePercentage();
+            }
+            
+            if (riskAssessment.getSellFeePercentage() > 0) {
+                this.sellFeePercentage = riskAssessment.getSellFeePercentage();
+            }
+            
+            // Calculate success rate based on risk score
+            this.successfulArbitragePercent = Math.max(0, Math.min(100, riskAssessment.getOverallRiskScore() * 100));
+            
+            // Set execution time with validation
+            double execTime = riskAssessment.getExecutionTimeEstimate();
+            if (execTime > 0) {
+                this.estimatedTimeMinutes = execTime;
+            } else if (this.estimatedTimeMinutes <= 0) {
+                // Set a reasonable default if no valid value is available
+                this.estimatedTimeMinutes = 3.0;
+            }
+            
+            // Set ROI efficiency
+            if (riskAssessment.getRoiEfficiency() > 0) {
+                this.roiEfficiency = riskAssessment.getRoiEfficiency();
+            } else if (this.estimatedTimeMinutes > 0) {
+                // Calculate ROI efficiency based on profit and execution time
+                this.roiEfficiency = (this.profitPercent / 100) * (60.0 / this.estimatedTimeMinutes);
+            }
+            
+            // Debug log of applied risk values
+            Log.d("ArbitrageOpportunity", String.format(
+                "Applied risk values to %s: Risk=%.2f, Liquidity=%.2f, Volatility=%.2f, Time=%.1f min",
+                this.normalizedSymbol,
+                this.riskScore,
+                this.liquidity,
+                this.volatility,
+                this.estimatedTimeMinutes));
         }
+    }
+
+    /**
+     * Create a default risk assessment with reasonable values.
+     *
+     * @return A default risk assessment
+     */
+    private RiskAssessment createDefaultRiskAssessment() {
+        RiskAssessment assessment = new RiskAssessment();
+        
+        // Set default values
+        assessment.setOverallRiskScore(0.5); // Moderate risk
+        assessment.setLiquidityScore(0.5);   // Average liquidity
+        assessment.setVolatilityScore(0.5);  // Average volatility
+        assessment.setSlippageRisk(0.005);   // 0.5% slippage
+        assessment.setFeeImpact((buyFeePercentage + sellFeePercentage) / 200.0); // Convert to 0-1 scale
+        assessment.setExecutionTimeEstimate(5.0); // 5 minutes execution time
+        assessment.setExecutionSpeedRisk(0.5);
+        assessment.setMarketDepthScore(0.5);
+        
+        // Set exchange information and fees
+        assessment.setExchangeBuy(this.exchangeBuy);
+        assessment.setExchangeSell(this.exchangeSell);
+        assessment.setBuyFeePercentage(this.buyFeePercentage);
+        assessment.setSellFeePercentage(this.sellFeePercentage);
+        
+        return assessment;
+    }
+
+    /**
+     * Calculate the total fee percentage (buy + sell)
+     * 
+     * @return Total fee percentage
+     */
+    public double getTotalFeePercentage() {
+        return buyFeePercentage + sellFeePercentage;
     }
 
     /**

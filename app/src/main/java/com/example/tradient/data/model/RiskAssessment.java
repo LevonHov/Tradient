@@ -71,8 +71,24 @@ public class RiskAssessment implements Parcelable {
         this.roiEfficiency = 0.002;
         this.optimalTradeSize = 1000.0;
         this.assessmentTime = new Date();
+        
+        // Initialize backward compatibility fields
+        this.liquidityScore = 0.5;
+        this.volatilityScore = 0.5;
+        this.feeImpact = 0.01;         // Default 1% fee impact
+        this.marketDepthScore = 0.5;
+        this.executionSpeedRisk = 0.5;
+        this.slippageRisk = 0.01;      // Default 1% slippage risk
+        this.buyFeePercentage = 0.1;   // Default 0.1% buy fee
+        this.sellFeePercentage = 0.1;  // Default 0.1% sell fee
+        
+        // Set default risk level
+        this.riskLevel = RISK_LEVEL_MEDIUM;
+        
+        // Initialize risk factors map
+        this.riskFactors = new HashMap<>();
     }
-    
+
     /**
      * Full constructor for RiskAssessment
      */
@@ -390,6 +406,25 @@ public class RiskAssessment implements Parcelable {
         riskFactors.put(name, value);
     }
     
+    /**
+     * Add a string risk factor to the map
+     * Converts the string to a hashcode-based double value for storage
+     * 
+     * @param name The risk factor name
+     * @param value The string value to store
+     */
+    public void addRiskFactorString(String name, String value) {
+        if (value == null) {
+            riskFactors.put(name, 0.0);
+            return;
+        }
+        // Store the string in a separate map or convert to a numeric representation
+        // Here we'll use a simple approach - store a value signifying it's a string
+        // In a real implementation, you might want to store strings separately
+        riskFactors.put(name + "_isString", 1.0);
+        riskFactors.put(name, (double)value.hashCode());
+    }
+    
     // Get a risk factor from the map
     public double getRiskFactor(String name) {
         return riskFactors.getOrDefault(name, 0.0);
@@ -409,6 +444,12 @@ public class RiskAssessment implements Parcelable {
         transactionRiskScore = in.readDouble();
         slippageEstimate = in.readDouble();
         executionTimeEstimate = in.readDouble();
+        
+        // Add safety check for execution time
+        if (executionTimeEstimate <= 0) {
+            executionTimeEstimate = 3.0; // Default to 3 minutes if no value was set
+        }
+        
         roiEfficiency = in.readDouble();
         optimalTradeSize = in.readDouble();
         
@@ -520,6 +561,11 @@ public class RiskAssessment implements Parcelable {
      * @return Formatted time string (e.g., "2.5 min" or "30 sec")
      */
     public String getFormattedExecutionTime() {
+        // Safety check for zero or negative values
+        if (executionTimeEstimate <= 0) {
+            return "3.0 min"; // Default value if no estimate is available
+        }
+        
         if (executionTimeEstimate < 1.0) {
             // Convert to seconds for times less than 1 minute
             int seconds = (int) Math.round(executionTimeEstimate * 60);
@@ -531,10 +577,170 @@ public class RiskAssessment implements Parcelable {
     }
     
     /**
-     * Check if this risk assessment has valid data
-     * @return true if data is valid
+     * Check if this risk assessment has valid values
+     * @return true if the assessment has valid values, false otherwise
      */
     public boolean isValid() {
-        return overallRiskScore >= 0 && overallRiskScore <= 1;
+        // Check core risk metrics
+        if (Double.isNaN(overallRiskScore) || overallRiskScore < 0 || overallRiskScore > 1) {
+            return false;
+        }
+        
+        if (Double.isNaN(liquidityRiskScore) || liquidityRiskScore < 0 || liquidityRiskScore > 1) {
+            return false;
+        }
+        
+        if (Double.isNaN(volatilityRiskScore) || volatilityRiskScore < 0 || volatilityRiskScore > 1) {
+            return false;
+        }
+        
+        // Check slippage
+        if (Double.isNaN(slippageEstimate) || slippageEstimate < 0) {
+            return false;
+        }
+        
+        // Check execution time - this is especially important for the detail view
+        if (Double.isNaN(executionTimeEstimate) || executionTimeEstimate <= 0) {
+            return false;
+        }
+        
+        // All checks passed
+        return true;
+    }
+
+    /**
+     * Create a risk assessment with specified values for the most important metrics.
+     * 
+     * @param overallRisk Overall risk score (0-1, higher is better/less risky)
+     * @param liquidity Liquidity score (0-1, higher is better)
+     * @param volatility Volatility score (0-1, higher is better)
+     * @param slippage Slippage estimate as a percentage (e.g., 0.005 for 0.5%)
+     * @return A configured risk assessment
+     */
+    public static RiskAssessment createWithValues(
+            double overallRisk,
+            double liquidity, 
+            double volatility,
+            double slippage) {
+        
+        RiskAssessment assessment = new RiskAssessment();
+        assessment.setOverallRiskScore(overallRisk);
+        assessment.setLiquidityScore(liquidity);
+        assessment.setVolatilityScore(volatility);
+        assessment.setSlippageEstimate(slippage);
+        assessment.setAssessmentTime(new Date());
+        
+        return assessment;
+    }
+    
+    /**
+     * Creates a risk assessment in an error state
+     * This can be used when risk calculation fails due to an exception
+     * 
+     * @param ex The exception that caused the error (can be null)
+     * @return A risk assessment configured to represent an error state
+     */
+    public static RiskAssessment createErrorState(Throwable ex) {
+        RiskAssessment assessment = new RiskAssessment();
+        // Set values indicating an error state
+        assessment.setOverallRiskScore(0.0);  // Highest risk
+        assessment.setLiquidityScore(0.0);
+        assessment.setVolatilityScore(0.0);
+        assessment.setSlippageEstimate(0.1);  // High slippage (10%)
+        assessment.setExecutionTimeEstimate(10.0); // Long execution time
+        assessment.setRiskLevel(RISK_LEVEL_EXTREME);
+        
+        // Store the error message in risk factors if exception provided
+        if (ex != null) {
+            assessment.addRiskFactorString("error_message", ex.getMessage());
+            assessment.addRiskFactorString("error_type", ex.getClass().getSimpleName());
+        }
+        
+        return assessment;
+    }
+    
+    /**
+     * Creates a risk assessment in an unknown state
+     * This can be used when risk calculation returns null or invalid data
+     * 
+     * @return A risk assessment configured to represent an unknown state
+     */
+    public static RiskAssessment createUnknownState() {
+        RiskAssessment assessment = new RiskAssessment();
+        // Set neutral/unknown values
+        assessment.setOverallRiskScore(0.25);  // Leaning toward higher risk
+        assessment.setLiquidityScore(0.25);
+        assessment.setVolatilityScore(0.25);
+        assessment.setSlippageEstimate(0.05);  // 5% slippage
+        assessment.setExecutionTimeEstimate(5.0); // Moderate execution time
+        assessment.setRiskLevel(RISK_LEVEL_UNKNOWN);
+        
+        return assessment;
+    }
+    
+    /**
+     * Creates a risk assessment for suspiciously high profit opportunities
+     * This can be used when profit percentage is unnaturally high (likely too good to be true)
+     * 
+     * @param profitPercent The profit percentage that triggered the suspicion
+     * @return A risk assessment configured to represent a high-risk state due to suspiciously high profit
+     */
+    public static RiskAssessment createSuspiciouslyHighProfitState(double profitPercent) {
+        RiskAssessment assessment = new RiskAssessment();
+        // Set values indicating a suspicious profit state (high risk)
+        
+        // Calculate a risk score inversely proportional to the profit
+        // Higher profits = lower risk score (higher risk)
+        double riskScore = Math.max(0.1, 0.4 - (profitPercent - 2.0) / 10.0);
+        
+        assessment.setOverallRiskScore(riskScore);  // Lower score = higher risk
+        assessment.setLiquidityScore(0.3);  // Assume low liquidity
+        assessment.setVolatilityScore(0.2);  // Assume high volatility
+        assessment.setSlippageEstimate(0.05);  // Assume high slippage (5%)
+        assessment.setExecutionTimeEstimate(8.0);  // Assume long execution time
+        assessment.setRiskLevel(RISK_LEVEL_HIGH);
+        
+        // Add risk factors for explanation
+        assessment.addRiskFactor("suspiciously_high_profit", profitPercent);
+        assessment.addRiskFactor("too_good_to_be_true_factor", 1.0);
+        
+        return assessment;
+    }
+    
+    /**
+     * Get a risk level description based on the overall risk score.
+     * This provides a consistent text representation of the risk level.
+     *
+     * @return A descriptive risk level
+     */
+    public String getRiskLevelDescription() {
+        double score = getOverallRiskScore();
+        
+        if (score >= 0.8) {
+            return "Low Risk";
+        } else if (score >= 0.6) {
+            return "Medium-Low Risk";
+        } else if (score >= 0.4) {
+            return "Medium Risk";
+        } else if (score >= 0.2) {
+            return "Medium-High Risk";
+        } else {
+            return "High Risk";
+        }
+    }
+    
+    /**
+     * Verify if this risk assessment has all required values properly set.
+     * Helps detect incomplete risk assessments.
+     *
+     * @return True if this is a complete, valid risk assessment
+     */
+    public boolean isComplete() {
+        // Check that all primary metrics are set to non-default values
+        return assessmentTime != null && 
+               liquidityScore != 0.0 &&
+               volatilityScore != 0.0 &&
+               slippageRisk != 0.0 &&
+               (buyFeePercentage > 0.0 || sellFeePercentage > 0.0);
     }
 }

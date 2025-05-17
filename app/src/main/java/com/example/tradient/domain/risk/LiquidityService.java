@@ -227,4 +227,70 @@ public class LiquidityService {
         lastUpdateTimestamps.clear();
         Log.d(TAG, "Liquidity cache cleared");
     }
+    
+    /**
+     * Calculate raw liquidity by summing all order book values.
+     * This returns the actual total value of all orders without any normalization or weighting.
+     * 
+     * @param buyOrderBook Order book from buy exchange (contains asks)
+     * @param sellOrderBook Order book from sell exchange (contains bids)
+     * @param symbol Trading pair symbol
+     * @return Total value in USD (or quote currency) of all orders
+     */
+    public double calculateRawLiquidity(OrderBook buyOrderBook, OrderBook sellOrderBook, String symbol) {
+        if (buyOrderBook == null || sellOrderBook == null) {
+            Log.e(TAG, "Unable to calculate raw liquidity - order books are null");
+            return 0.0;
+        }
+        
+        Log.d(TAG, "Calculating raw liquidity for " + symbol);
+        
+        double totalLiquidity = 0.0;
+        
+        // Sum all buy orders (bids from sell exchange)
+        if (sellOrderBook.getBidsAsMap() != null) {
+            for (Map.Entry<Double, Double> entry : sellOrderBook.getBidsAsMap().entrySet()) {
+                double price = entry.getKey();
+                double amount = entry.getValue();
+                double value = price * amount;
+                totalLiquidity += value;
+            }
+        }
+        
+        // Sum all sell orders (asks from buy exchange)
+        if (buyOrderBook.getAsksAsMap() != null) {
+            for (Map.Entry<Double, Double> entry : buyOrderBook.getAsksAsMap().entrySet()) {
+                double price = entry.getKey();
+                double amount = entry.getValue();
+                double value = price * amount;
+                totalLiquidity += value;
+            }
+        }
+        
+        Log.d(TAG, "Raw liquidity for " + symbol + ": " + totalLiquidity);
+        return totalLiquidity;
+    }
+    
+    /**
+     * Calculate raw liquidity based on real-time order book data.
+     * 
+     * @param buyExchangeService Buy exchange service
+     * @param sellExchangeService Sell exchange service
+     * @param symbol Trading pair symbol
+     * @return Total liquidity value in USD
+     */
+    public double calculateRealTimeRawLiquidity(ExchangeService buyExchangeService, 
+                                              ExchangeService sellExchangeService, 
+                                              String symbol) {
+        try {
+            // Get order books from both exchanges
+            OrderBook buyOrderBook = buyExchangeService.getOrderBook(symbol);
+            OrderBook sellOrderBook = sellExchangeService.getOrderBook(symbol);
+            
+            return calculateRawLiquidity(buyOrderBook, sellOrderBook, symbol);
+        } catch (Exception e) {
+            Log.e(TAG, "Error fetching data for raw liquidity calculation: " + e.getMessage());
+            return 0.0;
+        }
+    }
 } 

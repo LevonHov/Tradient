@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Common app colors -->
+    <color name="primary">#1E2130</color>
+    <color name="primary_dark">#171923</color>
+    <color name="accent">#00C087</color>
+    <color name="accent_20">#3300C087</color>
+    
+    <!-- Widget colors -->
+    <color name="widget_background">#1E2130</color>
+    <color name="widget_border">#252836</color>
+    <color name="widget_text_title">#8B93B0</color>
+    <color name="widget_text_value">#FFFFFF</color>
+    
+    <!-- Change indicators -->
+    <color name="positive_change">#00C087</color>
+    <color name="negative_change">#FF5C5C</color>
+    <color name="positive_change_background">#1A00C087</color>
+    <color name="negative_change_background">#1AFF5C5C</color>
+    
+    <!-- Status colors -->
+    <color name="success_green">#00C087</color>
+    <color name="error_red">#FF5C5C</color>
+    <color name="warning_yellow">#FFBB33</color>
+    <color name="alert_orange">#FF9940</color>
+    <color name="neon_blue">#0052FF</color>
+    <color name="secondary_text">#8B93B0</color>
+    
+    <!-- Filter UI specific colors -->
+    <color name="filter_card_bg">#1E2130</color>
+    <color name="filter_card_stroke">#252836</color>
+    <color name="filter_text_primary">#FFFFFF</color>
+    <color name="filter_text_secondary">#8B93B0</color>
+    <color name="filter_chip_bg_selected">#3300C087</color>
+    <color name="filter_chip_bg_unselected">#252836</color>
+    <color name="filter_chip_text_selected">#FFFFFF</color>
+    <color name="filter_chip_text_unselected">#8B93B0</color>
+    
+    <!-- Search field colors -->
+    <color name="search_bg">#252836</color>
+    <color name="text_input_box_stroke">#8B93B0</color>
+    
+    <!-- Chip states -->
+    <color name="chip_bg_selected">#3300C087</color>
+    <color name="chip_bg_unselected">#252836</color>
+    <color name="chip_stroke_selected">@color/accent</color>
+    <color name="chip_stroke_unselected">#3A3F55</color>
+    <color name="chip_text_selected">#FFFFFF</color>
+    <color name="chip_text_unselected">#8B93B0</color>
+    <color name="chip_icon_selected">@color/accent</color>
+    <color name="chip_icon_unselected">#8B93B0</color>
+    
+    <!-- Risk level chips -->
+    <color name="low_risk">#00C087</color>
+    <color name="medium_risk">#FFBB33</color>
+    <color name="high_risk">#FF5C5C</color>
+    <color name="low_risk_bg">#1A00C087</color>
+    <color name="medium_risk_bg">#1AFFBB33</color>
+    <color name="high_risk_bg">#1AFF5C5C</color>
+</resources> 

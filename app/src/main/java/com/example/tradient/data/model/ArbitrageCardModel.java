@@ -4,6 +4,7 @@ import android.graphics.Color;
 import android.util.Log;
 
 import com.example.tradient.domain.risk.RiskCalculationService;
+import com.example.tradient.domain.risk.UnifiedRiskCalculator;
 
 import java.text.DecimalFormat;
 import java.util.Date;
@@ -135,55 +136,18 @@ public class ArbitrageCardModel {
         } else {
             // Always calculate a new risk assessment on force recalculation
             try {
-                Ticker buyTicker = opportunity.getBuyTicker();
-                Ticker sellTicker = opportunity.getSellTicker();
+                // Use UnifiedRiskCalculator for consistency across the app
+                UnifiedRiskCalculator riskCalculator = UnifiedRiskCalculator.getInstance();
                 
-                // Only attempt full calculation if we have ticker data
-                if (buyTicker != null && sellTicker != null) {
-                    Log.d(TAG, "Calculating fresh risk assessment with full ticker data");
-                    // Use RiskCalculationService for accurate risk assessment
-                    RiskCalculationService riskService = new RiskCalculationService();
-                    
-                    // Calculate fee estimates if not available
-                    double buyFees = model.buyFee > 0 ? model.buyFee : getExchangeFee(model.buyExchange);
-                    double sellFees = model.sellFee > 0 ? model.sellFee : getExchangeFee(model.sellExchange);
-                    
-                    assessment = riskService.calculateRiskAssessment(
-                        buyTicker, 
-                        sellTicker, 
-                        buyFees, 
-                        sellFees
-                    );
-                    
-                    if (assessment != null) {
-                        riskScore = assessment.getOverallRiskScore();
-                        opportunity.setRiskAssessment(assessment); // Cache for future use
-                        Log.d(TAG, "Calculated new risk score: " + riskScore);
-                    }
-                } else {
-                    Log.d(TAG, "Using basic risk calculation (missing ticker data)");
-                    // Improved calculation based on profit and exchange reliability
-                    double profitPercent = opportunity.getProfitPercent();
-                    Log.d(TAG, "Profit percent for risk calculation: " + profitPercent);
-                    
-                    // Properly handle very high profit percentages (over 100%)
-                    double profitFactor;
-                    if (profitPercent >= 1.0) {
-                        // If profit is over 100%, use a logarithmic scale
-                        profitFactor = 0.8 + (Math.log10(profitPercent) * 0.1);
-                        profitFactor = Math.min(1.0, profitFactor); // Cap at 1.0
-                        Log.d(TAG, "Using logarithmic profit factor for high profit: " + profitFactor);
-                    } else {
-                        // For lower profits, use linear scale
-                        profitFactor = Math.min(0.9, profitPercent * 5);
-                        Log.d(TAG, "Using linear profit factor: " + profitFactor);
-                    }
-                    
-                    double exchangeFactor = getExchangeRiskFactor(model.buyExchange, model.sellExchange);
-                    // Weighted average, with more weight to profit for high-profit opportunities
-                    double profitWeight = Math.min(0.9, 0.6 + (profitPercent * 0.3));
-                    riskScore = (profitFactor * profitWeight) + (exchangeFactor * (1.0 - profitWeight));
-                    Log.d(TAG, "Basic risk calculation result: " + riskScore + " (profit weight: " + profitWeight + ")");
+                // Calculate fresh risk assessment
+                assessment = riskCalculator.calculateRisk(opportunity);
+                
+                // Apply the assessment to the opportunity to ensure all fields are updated
+                riskCalculator.applyRiskAssessment(opportunity, assessment);
+                
+                if (assessment != null) {
+                    riskScore = assessment.getOverallRiskScore();
+                    Log.d(TAG, "Calculated new risk score using UnifiedRiskCalculator: " + riskScore);
                 }
             } catch (Exception e) {
                 Log.e(TAG, "Error calculating risk for opportunity " + model.tradingPair + ": " + e.getMessage());
@@ -199,20 +163,16 @@ public class ArbitrageCardModel {
             }
         }
         
-        // IMPORTANT: Invert the risk score to match the interpretation in getRiskLevelName and getRiskColor
-        // This aligns our risk scale where 0.0 = lowest risk, 1.0 = highest risk
-        // RiskUtils and RiskCalculationService use 0.0 = highest risk, 1.0 = lowest risk
-        riskScore = 1.0 - riskScore;
-        Log.d(TAG, "Inverted risk score: " + riskScore + " (higher = riskier)");
-        
-        // Assign the calculated risk score
+        // IMPORTANT: Use the risk score directly without inversion
+        // UnifiedRiskCalculator already uses the scale where 0.0 = highest risk, 1.0 = lowest risk
         model.riskScore = riskScore;
         
-        // Set the risk level text
-        model.riskLevel = getRiskLevelName(riskScore);
+        // Set the risk level text using UnifiedRiskCalculator for consistency
+        UnifiedRiskCalculator riskCalculator = UnifiedRiskCalculator.getInstance();
+        model.riskLevel = riskCalculator.getRiskLevelText(riskScore);
         
-        // Set the risk color
-        model.riskColor = getRiskColor(riskScore);
+        // Set the risk color using UnifiedRiskCalculator for consistency
+        model.riskColor = riskCalculator.getRiskColor(riskScore);
         
         Log.d(TAG, "Final risk for " + model.tradingPair + ": " + model.riskScore + 
               " (" + model.riskLevel + ")" + (forceRecalculation ? " [FORCED]" : ""));
@@ -220,36 +180,22 @@ public class ArbitrageCardModel {
     
     /**
      * Gets the appropriate risk level name for a risk score
+     * This method is deprecated and only kept for backward compatibility
+     * Use UnifiedRiskCalculator.getRiskLevelText() instead
      */
     private static String getRiskLevelName(double riskScore) {
-        // Higher scores = higher risk (1.0 is highest risk, 0.0 is lowest risk)
-        if (riskScore >= 0.9) return "Critical";
-        if (riskScore >= 0.8) return "Extreme";
-        if (riskScore >= 0.7) return "Very High";
-        if (riskScore >= 0.6) return "High";
-        if (riskScore >= 0.5) return "Medium-High";
-        if (riskScore >= 0.4) return "Medium";
-        if (riskScore >= 0.3) return "Low-Medium";
-        if (riskScore >= 0.2) return "Low";
-        if (riskScore >= 0.1) return "Very Low";
-        return "Minimal";
+        // Use UnifiedRiskCalculator for consistent risk level names
+        return UnifiedRiskCalculator.getInstance().getRiskLevelText(riskScore);
     }
     
     /**
      * Gets the appropriate color for a risk score
+     * This method is deprecated and only kept for backward compatibility
+     * Use UnifiedRiskCalculator.getRiskColor() instead
      */
     private static int getRiskColor(double riskScore) {
-        // Higher scores = higher risk (red), lower scores = lower risk (green)
-        if (riskScore >= 0.9) return Color.parseColor("#B71C1C"); // Dark Red
-        if (riskScore >= 0.8) return Color.parseColor("#F44336"); // Red
-        if (riskScore >= 0.7) return Color.parseColor("#FF5722"); // Deep Orange
-        if (riskScore >= 0.6) return Color.parseColor("#FF9800"); // Orange
-        if (riskScore >= 0.5) return Color.parseColor("#FFC107"); // Amber
-        if (riskScore >= 0.4) return Color.parseColor("#FFEB3B"); // Yellow
-        if (riskScore >= 0.3) return Color.parseColor("#CDDC39"); // Lime
-        if (riskScore >= 0.2) return Color.parseColor("#8BC34A"); // Light Green
-        if (riskScore >= 0.1) return Color.parseColor("#4CAF50"); // Green
-        return Color.parseColor("#00C853"); // Bright Green
+        // Use UnifiedRiskCalculator for consistent risk colors
+        return UnifiedRiskCalculator.getInstance().getRiskColor(riskScore);
     }
     
     /**

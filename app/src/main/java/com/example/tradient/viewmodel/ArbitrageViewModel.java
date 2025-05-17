@@ -279,8 +279,64 @@ public class ArbitrageViewModel extends ViewModel {
     }
     
     private void findCommonSymbols() {
-        // Implementation for finding common symbols across exchanges
-        // ... (will be implemented in next edit)
+        try {
+            Log.i(TAG, "Finding common symbols across exchanges...");
+            statusMessage.postValue("Finding common symbols across exchanges...");
+            
+            // Use ConcurrentHashMap's merge operations for thread safety
+            final Set<String> commonSymbols = ConcurrentHashMap.newKeySet();
+            final Map<String, AtomicInteger> symbolCount = new ConcurrentHashMap<>();
+            
+            // First exchange adds all its symbols
+            if (!exchangeSymbolMap.isEmpty()) {
+                ExchangeService firstExchange = exchangeSymbolMap.keySet().iterator().next();
+                Map<String, String> firstSymbolMap = exchangeSymbolMap.get(firstExchange);
+                
+                if (firstSymbolMap != null) {
+                    // Add all normalized symbols from first exchange
+                    for (String normalizedSymbol : firstSymbolMap.keySet()) {
+                        symbolCount.put(normalizedSymbol, new AtomicInteger(1));
+                        commonSymbols.add(normalizedSymbol);
+                    }
+                    
+                    // Compare with all other exchanges
+                    for (Map.Entry<ExchangeService, Map<String, String>> entry : exchangeSymbolMap.entrySet()) {
+                        if (entry.getKey().equals(firstExchange)) {
+                            continue;
+                        }
+                        
+                        Map<String, String> otherSymbolMap = entry.getValue();
+                        if (otherSymbolMap == null) {
+                            continue;
+                        }
+                        
+                        // Update counts for symbols that exist in this exchange
+                        for (String normalizedSymbol : otherSymbolMap.keySet()) {
+                            symbolCount.computeIfAbsent(normalizedSymbol, k -> new AtomicInteger(0)).incrementAndGet();
+                        }
+                    }
+                    
+                    // Keep only symbols that exist in all exchanges
+                    int requiredCount = exchangeSymbolMap.size();
+                    commonSymbols.removeIf(symbol -> symbolCount.getOrDefault(symbol, new AtomicInteger(0)).get() < requiredCount);
+                    
+                    // Update tradable symbols with thread-safe method
+                    tradableSymbols.clear();
+                    tradableSymbols.addAll(commonSymbols);
+                    
+                    Log.i(TAG, "Found " + tradableSymbols.size() + " common symbols across all exchanges");
+                    statusMessage.postValue("Found " + tradableSymbols.size() + " common tradable symbols");
+                    
+                    // Mark initialization as complete
+                    initialScanComplete = true;
+                    updateInitializationProgress("initialScanComplete", true);
+                    updateInitializationProgress("tradableSymbolsCount", tradableSymbols.size());
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error finding common symbols", e);
+            errorMessage.postValue("Error finding common symbols: " + e.getMessage());
+        }
     }
     
     public String normalizeSymbol(String originalSymbol) {
@@ -288,7 +344,7 @@ public class ArbitrageViewModel extends ViewModel {
             return "";
         }
         
-        // Check cache first
+        // Check cache first using ConcurrentHashMap's thread-safe get method
         String cached = normalizedSymbolCache.get(originalSymbol);
         if (cached != null) {
             return cached;
@@ -310,7 +366,8 @@ public class ArbitrageViewModel extends ViewModel {
                 String[] parts = originalSymbol.split("-");
                 if (parts.length == 2) {
                     normalized = parts[0].toUpperCase() + "/" + parts[1].toUpperCase();
-                    normalizedSymbolCache.put(originalSymbol, normalized);
+                    // Use putIfAbsent for thread safety
+                    normalizedSymbolCache.putIfAbsent(originalSymbol, normalized);
                     return normalized;
                 }
             }
@@ -345,17 +402,27 @@ public class ArbitrageViewModel extends ViewModel {
             }
         }
         
-        // Cache the result
-        normalizedSymbolCache.put(originalSymbol, normalized);
+        // Cache the result with putIfAbsent for thread safety
+        normalizedSymbolCache.putIfAbsent(originalSymbol, normalized);
         return normalized;
     }
 
     private void updateInitializationProgress(String key, Object value) {
-        Map<String, Object> currentProgress = initializationProgress.getValue();
-        if (currentProgress == null) {
-            currentProgress = new HashMap<>();
+        // Create a new HashMap each time to avoid concurrent modification issues
+        Map<String, Object> currentProgress = new HashMap<>();
+        Map<String, Object> previousProgress = initializationProgress.getValue();
+        
+        if (previousProgress != null) {
+            synchronized (previousProgress) {
+                // Copy existing values to the new map with synchronization
+                currentProgress.putAll(previousProgress);
+            }
         }
+        
+        // Add the new key-value pair
         currentProgress.put(key, value);
+        
+        // Update the LiveData value
         initializationProgress.postValue(currentProgress);
     }
     
@@ -388,7 +455,7 @@ public class ArbitrageViewModel extends ViewModel {
         }
     }
     
-    private void processExchangeTickers(ExchangeService exchange) {
+    private void processExchangeTickers(ExchangeService exchange) throws Exception {
         try {
             // Get trading pairs for this exchange
             Map<String, String> symbolMap = exchangeSymbolMap.get(exchange);
@@ -432,13 +499,26 @@ public class ArbitrageViewModel extends ViewModel {
     
     private void checkArbitrageOpportunities(String normalizedSymbol, ExchangeService currentExchange, Ticker currentTicker) {
         try {
+            // Get all exchanges locally to avoid concurrent modification
+            List<ExchangeService> currentExchanges;
+            synchronized (exchanges) {
+                currentExchanges = new ArrayList<>(exchanges);
+            }
+            
             // Compare with other exchanges
-            for (ExchangeService otherExchange : exchanges) {
+            for (ExchangeService otherExchange : currentExchanges) {
                 if (otherExchange.equals(currentExchange)) {
                     continue;
                 }
                 
-                String otherSymbol = exchangeSymbolMap.get(otherExchange).get(normalizedSymbol);
+                // Get the symbol map atomically
+                Map<String, String> otherSymbolMap = exchangeSymbolMap.get(otherExchange);
+                if (otherSymbolMap == null) {
+                    continue;
+                }
+                
+                // Get the symbol safely
+                String otherSymbol = otherSymbolMap.get(normalizedSymbol);
                 if (otherSymbol == null) {
                     continue;
                 }
@@ -451,8 +531,10 @@ public class ArbitrageViewModel extends ViewModel {
                         if (otherTicker == null) {
                             continue;
                         }
-                        cachedTickers.put(normalizedSymbol + ":" + otherExchange.getExchangeName(), otherTicker);
-                        tickerTimestamps.put(normalizedSymbol + ":" + otherExchange.getExchangeName(), System.currentTimeMillis());
+                        // Use appropriate caching strategy
+                        String cacheKey = normalizedSymbol + ":" + otherExchange.getExchangeName();
+                        cachedTickers.put(cacheKey, otherTicker);
+                        tickerTimestamps.put(cacheKey, System.currentTimeMillis());
                     } catch (Exception e) {
                         Log.e(TAG, "Error fetching ticker for " + otherSymbol + " on " + otherExchange.getExchangeName(), e);
                         continue;
@@ -709,6 +791,8 @@ public class ArbitrageViewModel extends ViewModel {
     
     private Ticker getCachedTicker(String normalizedSymbol, ExchangeService exchange) {
         String cacheKey = normalizedSymbol + ":" + exchange.getExchangeName();
+        
+        // Use atomic reads from the ConcurrentHashMap
         Long timestamp = tickerTimestamps.get(cacheKey);
         
         if (timestamp != null && System.currentTimeMillis() - timestamp < TICKER_CACHE_TTL) {

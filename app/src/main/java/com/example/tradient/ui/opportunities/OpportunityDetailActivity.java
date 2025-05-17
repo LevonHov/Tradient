@@ -1,1078 +1,839 @@
 package com.example.tradient.ui.opportunities;
 
-import android.content.DialogInterface;
+import android.graphics.Color;
 import android.os.Bundle;
 import android.os.Handler;
-import android.text.Editable;
-import android.text.TextWatcher;
+import android.os.Looper;
 import android.util.Log;
-import android.util.Pair;
+import android.view.MenuItem;
 import android.view.View;
-import android.widget.EditText;
+import android.widget.Button;
+import android.widget.ImageView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
-import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.core.content.ContextCompat;
-import androidx.lifecycle.ViewModelProvider;
+import androidx.cardview.widget.CardView;
 
 import com.example.tradient.R;
+import com.example.tradient.data.interfaces.ArbitrageResult;
+import com.example.tradient.data.interfaces.INotificationService;
 import com.example.tradient.data.model.ArbitrageOpportunity;
-import com.example.tradient.data.model.Exchange;
-import com.example.tradient.data.model.OrderBook;
+import com.example.tradient.data.model.RiskAssessment;
 import com.example.tradient.data.model.Ticker;
 import com.example.tradient.data.service.ExchangeService;
-import com.example.tradient.data.service.ExchangeServiceFactory;
-import com.example.tradient.domain.market.MarketDataManager;
-import com.example.tradient.domain.risk.LiquidityService;
-import com.example.tradient.domain.risk.VolatilityService;
-import com.github.mikephil.charting.charts.BarChart;
-import com.github.mikephil.charting.charts.LineChart;
-import com.google.android.material.button.MaterialButton;
-import com.google.android.material.card.MaterialCardView;
-import com.google.android.material.dialog.MaterialAlertDialogBuilder;
-import com.google.android.material.progressindicator.CircularProgressIndicator;
-import com.google.android.material.slider.Slider;
-import com.github.mikephil.charting.data.Entry;
-import com.github.mikephil.charting.data.LineDataSet;
+import com.example.tradient.domain.risk.RiskCalculator;
+import com.example.tradient.domain.risk.UnifiedRiskCalculator;
+import com.example.tradient.domain.risk.RiskEnsurer;
+import com.example.tradient.infrastructure.ExchangeRegistry;
+import com.example.tradient.repository.ExchangeRepository;
+import com.example.tradient.util.RiskAssessmentAdapter;
+import com.example.tradient.util.TimeEstimationUtil;
+import com.google.android.material.snackbar.Snackbar;
 
 import java.text.DecimalFormat;
-import java.util.List;
-import java.util.Map;
+import java.text.NumberFormat;
+import java.util.Date;
+import java.util.Locale;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
- * Activity to display detailed information about an arbitrage opportunity.
- * Follows MVVM pattern with separation of UI and business logic.
+ * A simplified activity to display details about arbitrage opportunities.
+ * This version focuses on essential information without complex charts.
  */
-public class OpportunityDetailActivity extends AppCompatActivity implements MarketDataManager.MarketDataListener {
-
+public class OpportunityDetailActivity extends AppCompatActivity {
     private static final String TAG = "OpportunityDetailActivity";
     
-    private OpportunityDetailViewModel viewModel;
-    private ChartManager chartManager;
+    // UI Components - Basic Info
+    private TextView symbolText;
+    private TextView buyExchangeText;
+    private TextView sellExchangeText;
+    private TextView buyPriceText;
+    private TextView sellPriceText;
+    private TextView profitText;
+    private ImageView buyExchangeLogo;
+    private ImageView sellExchangeLogo;
     
-    // New services for real-time data
-    private VolatilityService volatilityService;
-    private LiquidityService liquidityService;
+    // UI Components - Financial Details
+    private TextView buyFeeText;
+    private TextView sellFeeText;
+    private TextView netProfitText;
+    private TextView slippageText;
+    private TextView totalCostText;
+    
+    // UI Components - Risk Assessment
+    private TextView riskLevelText;
+    private TextView liquidityText;
+    private TextView volatilityText;
+    private TextView executionTimeText;
+    private View riskIndicator;
+    private ProgressBar riskProgressBar;
+    
+    // UI Components - Action Buttons
+    private Button refreshButton;
+    private Button simulateButton;
+    private ProgressBar loadingProgress;
+    
+    // Data
+    private ArbitrageOpportunity opportunity;
+    private UnifiedRiskCalculator unifiedRiskCalculator;
+    private ExchangeRepository exchangeRepository;
     private ExecutorService executorService;
     
-    // Exchange services for direct API access
-    private ExchangeService buyExchangeService;
-    private ExchangeService sellExchangeService;
-    
-    // New market data manager for real-time data
-    private MarketDataManager marketDataManager;
-    
-    // UI Components
-    private TextView symbolTextView;
-    private TextView profitTextView;
-    private TextView buyExchangeTextView;
-    private TextView sellExchangeTextView;
-    private TextView buyPriceTextView;
-    private TextView sellPriceTextView;
-    private TextView buyFeeTextView;
-    private TextView sellFeeTextView;
-    private TextView timeEstimateTextView;
-    private TextView roiEfficiencyTextView;
-    private TextView volatilityTextView;
-    private TextView liquidityTextView;
-    private TextView riskTextView;
-    private TextView optimalSizeTextView;
-    private TextView lastUpdateTimeTextView;
-    private TextView strategyTextView;
-    private BarChart marketDepthChart;
-    private LineChart priceHistoryChart;
-    private TextView depthChartDescription;
-    private TextView priceChartDescription;
-    private MaterialButton executeButton;
-    private MaterialCardView profitCard;
-    private CircularProgressIndicator loadingIndicator;
-    private MaterialCardView tradeSimulationCard;
-    private Slider tradeAmountSlider;
-    private TextView expectedProfitTextView;
-    
     // Formatters
-    private DecimalFormat currencyFormatter;
-    private DecimalFormat percentFormatter;
+    private final NumberFormat currencyFormat = NumberFormat.getCurrencyInstance(Locale.US);
+    private final DecimalFormat percentFormat = new DecimalFormat("0.00%");
+    private final DecimalFormat decimalFormat = new DecimalFormat("#,##0.00####");
     
-    // Auto-refresh handler
-    private Handler refreshHandler;
-    private final int REFRESH_INTERVAL_MS = 10000; // 10 seconds
-    private Runnable refreshRunnable;
-    private boolean isRefreshing = false;
+    // Refresh handling
+    private final Handler refreshHandler = new Handler(Looper.getMainLooper());
+    private final int AUTO_REFRESH_INTERVAL = 10000; // 10 seconds
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_opportunity_detail);
         
+        // Initialize components
+        initializeComponents();
+        
         // Get opportunity from intent
-        ArbitrageOpportunity opportunity = getIntent().getParcelableExtra("opportunity");
-        if (opportunity == null) {
-            Toast.makeText(this, "Error: No opportunity data found", Toast.LENGTH_SHORT).show();
-            finish();
-            return;
+        if (getIntent() != null && getIntent().hasExtra("opportunity")) {
+            opportunity = getIntent().getParcelableExtra("opportunity");
+            if (opportunity != null) {
+                // Set up services
+                unifiedRiskCalculator = UnifiedRiskCalculator.getInstance();
+                exchangeRepository = new ExchangeRepository(this);
+                executorService = Executors.newCachedThreadPool();
+                
+                // Ensure consistent risk values before display
+                opportunity = RiskEnsurer.ensureRiskValues(opportunity, true);
+                
+                // Display data from the Parcelable first
+                displayOpportunityData();
+                
+                // Then queue up a refresh to get real-time data
+                Log.d(TAG, "Queueing initial data refresh");
+                new Handler().postDelayed(() -> refreshData(), 500);
+            } else {
+                showError("Invalid opportunity data received");
+            }
+        } else {
+            showError("No opportunity data found");
         }
         
-        // Initialize components
-        initFormatters();
-        initViews();
+        // Set up action listeners
+        setupActionListeners();
         
-        // Initialize services - Make sure this happens before setting up ViewModel
-        initServices(opportunity);
-        
-        // Initialize market data manager
-        initMarketDataManager(opportunity);
-        
-        setupViewModel(opportunity);
-        setupRefreshHandler();
-        setupEventListeners();
-        
-        // Force an immediate update of liquidity data
-        if (buyExchangeService != null && sellExchangeService != null) {
-            Log.d(TAG, "Forcing initial liquidity calculation for " + opportunity.getSymbol());
-            executorService.execute(() -> {
-                try {
-                    // Get fresh order book data
-                    OrderBook buyOrderBook = buyExchangeService.getOrderBook(opportunity.getSymbol());
-                    OrderBook sellOrderBook = sellExchangeService.getOrderBook(opportunity.getSymbol());
-                    
-                    if (buyOrderBook != null && sellOrderBook != null) {
-                        final double liquidity = calculateTotalLiquidity(buyOrderBook, sellOrderBook);
-                        Log.d(TAG, "Initial liquidity calculation: " + liquidity);
-                        
-                        runOnUiThread(() -> {
-                            liquidityTextView.setText(currencyFormatter.format(liquidity));
-                        });
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "Error in initial liquidity calculation: " + e.getMessage());
-                }
-            });
+        // Configure toolbar
+        setSupportActionBar(findViewById(R.id.toolbar));
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+            getSupportActionBar().setTitle("Opportunity Details");
         }
     }
     
     @Override
     protected void onResume() {
         super.onResume();
+        // Start auto-refresh
         startAutoRefresh();
     }
     
     @Override
     protected void onPause() {
         super.onPause();
+        // Stop auto-refresh
         stopAutoRefresh();
     }
     
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        // Shutdown executor service
         if (executorService != null) {
             executorService.shutdown();
-        }
-        if (marketDataManager != null) {
-            marketDataManager.shutdown();
-        }
-    }
-    
-    /**
-     * Initialize formatting utilities
-     */
-    private void initFormatters() {
-        currencyFormatter = new DecimalFormat("$#,##0.00###");
-        percentFormatter = new DecimalFormat("0.00%");
-    }
-    
-    /**
-     * Find and initialize all UI components
-     */
-    private void initViews() {
-        // Find all UI components by their IDs
-        symbolTextView = findViewById(R.id.symbolTextView);
-        profitTextView = findViewById(R.id.profitTextView);
-        buyExchangeTextView = findViewById(R.id.buyExchangeTextView);
-        sellExchangeTextView = findViewById(R.id.sellExchangeTextView);
-        buyPriceTextView = findViewById(R.id.buyPriceTextView);
-        sellPriceTextView = findViewById(R.id.sellPriceTextView);
-        buyFeeTextView = findViewById(R.id.buyFeeTextView);
-        sellFeeTextView = findViewById(R.id.sellFeeTextView);
-        lastUpdateTimeTextView = findViewById(R.id.lastUpdateTimeTextView);
-        
-        // Metrics
-        timeEstimateTextView = findViewById(R.id.timeEstimateTextView);
-        roiEfficiencyTextView = findViewById(R.id.roiEfficiencyTextView);
-        volatilityTextView = findViewById(R.id.volatilityTextView);
-        liquidityTextView = findViewById(R.id.liquidityTextView);
-        riskTextView = findViewById(R.id.riskTextView);
-        optimalSizeTextView = findViewById(R.id.optimalSizeTextView);
-        
-        // Charts
-        marketDepthChart = findViewById(R.id.marketDepthChart);
-        priceHistoryChart = findViewById(R.id.priceHistoryChart);
-        depthChartDescription = findViewById(R.id.depthChartDescription);
-        priceChartDescription = findViewById(R.id.priceChartDescription);
-        
-        // Buttons and cards
-        executeButton = findViewById(R.id.executeButton);
-        profitCard = findViewById(R.id.profitCard);
-        loadingIndicator = findViewById(R.id.loadingIndicator);
-        
-        // Trade simulation
-        tradeSimulationCard = findViewById(R.id.tradeSimulationCard);
-        tradeAmountSlider = findViewById(R.id.tradeAmountSlider);
-        expectedProfitTextView = findViewById(R.id.expectedProfitTextView);
-        strategyTextView = findViewById(R.id.strategyTextView);
-        
-        // Add a button to view raw data
-        MaterialButton rawDataButton = findViewById(R.id.rawDataButton);
-        if (rawDataButton != null) {
-            rawDataButton.setOnClickListener(v -> showRawExchangeData());
-        }
-        
-        // Set chart descriptions
-        if (depthChartDescription != null) {
-            depthChartDescription.setText("Market depth shows available buy/sell orders. " +
-                    "Higher depth indicates better liquidity and less slippage for larger trades.");
-        }
-        
-        if (priceChartDescription != null) {
-            priceChartDescription.setText("Price history shows 24h trend. " +
-                    "The gap between lines represents potential arbitrage opportunities.");
-        }
-    }
-    
-    /**
-     * Initialize services for direct API access and data calculations
-     */
-    private void initServices(ArbitrageOpportunity opportunity) {
-        // Create executor service for background tasks
-        executorService = Executors.newCachedThreadPool();
-        
-        // Initialize risk services
-        volatilityService = new VolatilityService();
-        liquidityService = new LiquidityService();
-        
-        // Get exchange services for the buy and sell exchanges
-        try {
-            Exchange buyExchange = Exchange.valueOf(opportunity.getBuyExchangeName().toUpperCase());
-            Exchange sellExchange = Exchange.valueOf(opportunity.getSellExchangeName().toUpperCase());
-            
-            buyExchangeService = ExchangeServiceFactory.getExchangeService(buyExchange);
-            sellExchangeService = ExchangeServiceFactory.getExchangeService(sellExchange);
-            
-            Log.d(TAG, "Exchange services initialized for " + buyExchange + " and " + sellExchange);
-        } catch (IllegalArgumentException e) {
-            Log.e(TAG, "Error initializing exchange services: " + e.getMessage());
-            Toast.makeText(this, "Error initializing exchange services", Toast.LENGTH_SHORT).show();
-        }
-    }
-    
-    /**
-     * Initialize the market data manager and exchange services
-     */
-    private void initMarketDataManager(ArbitrageOpportunity opportunity) {
-        marketDataManager = new MarketDataManager();
-        marketDataManager.setListener(this);
-        marketDataManager.initializeExchanges(
-                opportunity.getBuyExchangeName(),
-                opportunity.getSellExchangeName()
-        );
-    }
-    
-    /**
-     * Set up ViewModel and observe LiveData
-     */
-    private void setupViewModel(ArbitrageOpportunity opportunity) {
-        // Initialize ViewModel and ChartManager
-        viewModel = new ViewModelProvider(this).get(OpportunityDetailViewModel.class);
-        chartManager = new ChartManager(this);
-        
-        // Set opportunity and observe data changes
-        viewModel.setOpportunity(opportunity);
-        
-        // Observe loading state
-        viewModel.isLoading().observe(this, isLoading -> {
-            loadingIndicator.setVisibility(isLoading ? View.VISIBLE : View.GONE);
-            if (!isLoading) {
-                updateStrategySuggestions();
-            }
-        });
-        
-        // Observe error messages
-        viewModel.getErrorMessage().observe(this, errorMsg -> {
-            if (errorMsg != null && !errorMsg.isEmpty()) {
-                Toast.makeText(this, errorMsg, Toast.LENGTH_SHORT).show();
-            }
-        });
-        
-        // Observe basic data
-        viewModel.getCurrentProfit().observe(this, this::updateProfitDisplay);
-        viewModel.getCurrentBuyPrice().observe(this, price -> 
-                buyPriceTextView.setText(currencyFormatter.format(price)));
-        viewModel.getCurrentSellPrice().observe(this, price -> 
-                sellPriceTextView.setText(currencyFormatter.format(price)));
-        viewModel.getLastUpdateTime().observe(this, time -> 
-                lastUpdateTimeTextView.setText("Last updated: " + time));
-        
-        // Observe performance metrics
-        viewModel.getTimeEstimateSeconds().observe(this, seconds -> {
-            int minutes = seconds / 60;
-            int remainingSeconds = seconds % 60;
-            timeEstimateTextView.setText(String.format("%dm %ds", minutes, remainingSeconds));
-        });
-        
-        viewModel.getRoiEfficiency().observe(this, roiEfficiency -> 
-                roiEfficiencyTextView.setText(String.format("%.2f%%/hr", roiEfficiency * 100)));
-        
-        // Observe volatility data
-        viewModel.getVolatility().observe(this, volatility -> {
-            updateVolatilityDisplay(volatility);
-            
-            // Update strategy suggestions with new volatility data
-            updateStrategySuggestions();
-        });
-        
-        // Observe liquidity data
-        viewModel.getCombinedLiquidity().observe(this, liquidity -> {
-            // Format as dollars with appropriate suffix (K, M)
-            String formattedLiquidity;
-            if (liquidity >= 1000000) {
-                formattedLiquidity = String.format("$%.1fM", liquidity / 1000000.0);
-            } else {
-                formattedLiquidity = String.format("$%.0fK", liquidity / 1000.0);
-            }
-            liquidityTextView.setText(formattedLiquidity);
-            
-            // Update strategy suggestions with new liquidity data
-            updateStrategySuggestions();
-        });
-        
-        viewModel.getOptimalTradeSize().observe(this, size -> 
-                optimalSizeTextView.setText(currencyFormatter.format(size)));
-        
-        viewModel.getRiskScore().observe(this, riskScore -> {
-            riskTextView.setText(String.format("%.0f%%", riskScore * 100));
-            
-            // Style risk score text based on value
-            if (riskScore < 0.25) {
-                riskTextView.setTextColor(ContextCompat.getColor(this, R.color.profit_positive));
-            } else if (riskScore < 0.5) {
-                riskTextView.setTextColor(ContextCompat.getColor(this, R.color.profit_neutral));
-            } else {
-                riskTextView.setTextColor(ContextCompat.getColor(this, R.color.profit_negative));
-            }
-        });
-        
-        // Observe order book and ticker data for charts
-        viewModel.getBuyOrderBook().observe(this, this::updateMarketDepthChart);
-        viewModel.getSellOrderBook().observe(this, this::updateMarketDepthChart);
-        viewModel.getBuyExchangeTickers().observe(this, this::updatePriceHistoryChart);
-        viewModel.getSellExchangeTickers().observe(this, this::updatePriceHistoryChart);
-        
-        // Set static data
-        buyExchangeTextView.setText(opportunity.getBuyExchangeName());
-        sellExchangeTextView.setText(opportunity.getSellExchangeName());
-        symbolTextView.setText(opportunity.getSymbol());
-        buyFeeTextView.setText(percentFormatter.format(opportunity.getBuyFee()));
-        sellFeeTextView.setText(percentFormatter.format(opportunity.getSellFee()));
-        
-        // Set up simulation slider
-        if (tradeAmountSlider != null) {
-            tradeAmountSlider.setValue(1000);
-            tradeAmountSlider.addOnChangeListener((slider, value, fromUser) -> {
-                // Use slippage-adjusted profit calculation
-                double netProfit = viewModel.calculateNetProfitAfterSlippage(value) * value;
-                
-                // If no slippage data yet, fall back to basic calculation
-                if (netProfit == 0) {
-                    Pair<Double, Double> result = viewModel.simulateTrade(value);
-                    netProfit = result.first;
-                }
-                
-                expectedProfitTextView.setText(currencyFormatter.format(netProfit));
-                
-                // Set profit color
-                if (netProfit > 0) {
-                    expectedProfitTextView.setTextColor(
-                            ContextCompat.getColor(this, R.color.profit_positive));
-                } else {
-                    expectedProfitTextView.setTextColor(
-                            ContextCompat.getColor(this, R.color.profit_negative));
-                }
-            });
-            
-            // Trigger initial update
-            double initialValue = tradeAmountSlider.getValue();
-            double netProfit = viewModel.calculateNetProfitAfterSlippage(initialValue) * initialValue;
-            if (netProfit == 0) {
-                Pair<Double, Double> result = viewModel.simulateTrade(initialValue);
-                netProfit = result.first;
-            }
-            expectedProfitTextView.setText(currencyFormatter.format(netProfit));
-        }
-    }
-    
-    /**
-     * Set up event listeners for UI components
-     */
-    private void setupEventListeners() {
-        executeButton.setOnClickListener(v -> executeArbitrage());
-        
-        if (tradeSimulationCard != null) {
-            tradeSimulationCard.setOnClickListener(v -> showTradeSimulationDialog());
-        }
-    }
-    
-    /**
-     * Set up auto-refresh handler for real-time data
-     */
-    private void setupRefreshHandler() {
-        refreshHandler = new Handler(getMainLooper());
-        refreshRunnable = new Runnable() {
-            @Override
-            public void run() {
-                // Refresh market data via ViewModel
-                viewModel.refreshMarketData();
-                
-                // Fetch real-time volatility and liquidity data
-                if (marketDataManager != null && viewModel.getOpportunity() != null) {
-                    marketDataManager.fetchLatestMarketData(viewModel.getOpportunity().getSymbol());
-                }
-                
-                refreshHandler.postDelayed(this, REFRESH_INTERVAL_MS);
-            }
-        };
-    }
-    
-    /**
-     * Start auto-refresh for market data
-     */
-    private void startAutoRefresh() {
-        if (!isRefreshing) {
-            isRefreshing = true;
-            refreshHandler.post(refreshRunnable);
-        }
-    }
-    
-    /**
-     * Stop auto-refresh for market data
-     */
-    private void stopAutoRefresh() {
-        if (isRefreshing) {
-            refreshHandler.removeCallbacks(refreshRunnable);
-            isRefreshing = false;
-        }
-    }
-    
-    /**
-     * Update profit display with appropriate styling
-     */
-    private void updateProfitDisplay(double profit) {
-        profitTextView.setText(percentFormatter.format(profit));
-        
-        int profitColor;
-        if (profit > 0) {
-            profitColor = ContextCompat.getColor(this, R.color.profit_positive);
-        } else if (profit < 0) {
-            profitColor = ContextCompat.getColor(this, R.color.profit_negative);
-        } else {
-            profitColor = ContextCompat.getColor(this, R.color.profit_neutral);
-        }
-        
-        profitTextView.setTextColor(profitColor);
-        profitCard.setStrokeColor(profitColor);
-    }
-    
-    /**
-     * Update market depth chart if both order books are available
-     */
-    private void updateMarketDepthChart(OrderBook orderBook) {
-        OrderBook buyOrderBook = viewModel.getBuyOrderBook().getValue();
-        OrderBook sellOrderBook = viewModel.getSellOrderBook().getValue();
-        
-        if (buyOrderBook != null && sellOrderBook != null) {
-            String buyExchangeName = viewModel.getOpportunity().getBuyExchangeName();
-            String sellExchangeName = viewModel.getOpportunity().getSellExchangeName();
-            
-            chartManager.setupMarketDepthChart(marketDepthChart, buyOrderBook, sellOrderBook,
-                    buyExchangeName, sellExchangeName);
-        }
-    }
-    
-    /**
-     * Update price history chart if both ticker lists are available
-     */
-    private void updatePriceHistoryChart(List<Ticker> tickers) {
-        List<Ticker> buyTickers = viewModel.getBuyExchangeTickers().getValue();
-        List<Ticker> sellTickers = viewModel.getSellExchangeTickers().getValue();
-        
-        if (buyTickers != null && !buyTickers.isEmpty() && 
-            sellTickers != null && !sellTickers.isEmpty()) {
-            String buyExchangeName = viewModel.getOpportunity().getBuyExchangeName();
-            String sellExchangeName = viewModel.getOpportunity().getSellExchangeName();
-            
-            chartManager.setupPriceHistoryChart(priceHistoryChart, buyTickers, sellTickers,
-                    buyExchangeName, sellExchangeName);
-        }
-    }
-    
-    // MarketDataListener implementation
-    
-    @Override
-    public void onVolatilityUpdated(double volatility) {
-        runOnUiThread(() -> {
-            // Update volatility display using the same styling as the ViewModel observer
-            updateVolatilityDisplay(volatility);
-            
-            // Update strategy suggestions
-            updateStrategySuggestions();
-        });
-    }
-    
-    /**
-     * Update volatility display with consistent styling
-     */
-    private void updateVolatilityDisplay(double volatility) {
-        String volatilityText;
-        int volatilityColor;
-        String tooltipText;
-        
-        // Determine volatility category and styling
-        if (volatility < 0.02) {
-            volatilityText = "LOW";
-            volatilityColor = ContextCompat.getColor(this, R.color.profit_positive);
-            tooltipText = "Low volatility: <2% price movement expected. Stable market conditions.";
-        } else if (volatility < 0.05) {
-            volatilityText = "MEDIUM";
-            volatilityColor = ContextCompat.getColor(this, R.color.profit_neutral);
-            tooltipText = "Medium volatility: 2-5% price movement expected. Normal market conditions.";
-        } else {
-            volatilityText = "HIGH";
-            volatilityColor = ContextCompat.getColor(this, R.color.profit_negative);
-            tooltipText = "High volatility: >5% price movement expected. Caution advised.";
-        }
-        
-        // Apply styling and text
-        volatilityTextView.setText(volatilityText);
-        volatilityTextView.setTextColor(volatilityColor);
-        
-        // Set up tooltip with detailed information
-        volatilityTextView.setOnClickListener(v -> {
-            Toast.makeText(this, tooltipText, Toast.LENGTH_LONG).show();
-        });
-    }
-    
-    @Override
-    public void onLiquidityUpdated(double liquidity) {
-        runOnUiThread(() -> {
             try {
-                // Get opportunity details
-                ArbitrageOpportunity opportunity = viewModel.getOpportunity();
-                if (opportunity == null) {
-                    liquidityTextView.setText("$0.00");
-                    return;
+                if (!executorService.awaitTermination(500, TimeUnit.MILLISECONDS)) {
+                    executorService.shutdownNow();
                 }
-                
-                String symbol = opportunity.getSymbol();
-                double displayLiquidity = 0.0;
-                
-                // Try order books first
-                OrderBook buyOrderBook = viewModel.getBuyOrderBook().getValue();
-                OrderBook sellOrderBook = viewModel.getSellOrderBook().getValue();
-                
-                if (buyOrderBook != null && sellOrderBook != null) {
-                    // Calculate directly from order books
-                    double buyLiquidity = 0;
-                    double sellLiquidity = 0;
-                    
-                    // Sum up all buy orders
-                    for (Map.Entry<Double, Double> entry : buyOrderBook.getAsksAsMap().entrySet()) {
-                        buyLiquidity += entry.getKey() * entry.getValue();
-                    }
-                    
-                    // Sum up all sell orders
-                    for (Map.Entry<Double, Double> entry : sellOrderBook.getBidsAsMap().entrySet()) {
-                        sellLiquidity += entry.getKey() * entry.getValue();
-                    }
-                    
-                    // Use average of buy and sell liquidity
-                    if (buyLiquidity > 0 && sellLiquidity > 0) {
-                        displayLiquidity = (buyLiquidity + sellLiquidity) / 2;
-                        Log.d(TAG, "Calculated real liquidity from order books: " + displayLiquidity);
-                    }
-                }
-                
-                // If order book calculation failed, try ticker data
-                if (displayLiquidity <= 0 && buyExchangeService != null && sellExchangeService != null) {
-                    try {
-                        // Get ticker data directly from exchange APIs
-                        Ticker buyTicker = buyExchangeService.getTickerData(symbol);
-                        Ticker sellTicker = sellExchangeService.getTickerData(symbol);
-                        
-                        if (buyTicker != null && sellTicker != null) {
-                            // Calculate liquidity from 24h volume 
-                            double buyVolume = buyTicker.getVolume() * buyTicker.getLastPrice();
-                            double sellVolume = sellTicker.getVolume() * sellTicker.getLastPrice();
-                            
-                            if (buyVolume > 0 && sellVolume > 0) {
-                                displayLiquidity = (buyVolume + sellVolume) / 2;
-                                Log.d(TAG, "Using exchange API ticker volume: " + displayLiquidity);
-                            }
-                        }
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error getting ticker data: " + e.getMessage());
-                    }
-                }
-                
-                // If still no liquidity, check raw exchange data
-                if (displayLiquidity <= 0) {
-                    try {
-                        String rawData = viewModel.getRawExchangeData();
-                        if (rawData != null && !rawData.isEmpty() && rawData.contains("Available Liquidity")) {
-                            // Find the first exchange's liquidity data
-                            String buyExchange = opportunity.getBuyExchangeName();
-                            String regex = buyExchange + " Available Liquidity: \\$(\\d+,?\\d*\\.?\\d*)";
-                            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(regex);
-                            java.util.regex.Matcher matcher = pattern.matcher(rawData);
-                            
-                            if (matcher.find()) {
-                                String liquidityStr = matcher.group(1).replace(",", "");
-                                try {
-                                    displayLiquidity = Double.parseDouble(liquidityStr);
-                                    Log.d(TAG, "Used raw exchange data liquidity: " + displayLiquidity);
-                                } catch (NumberFormatException e) {
-                                    Log.e(TAG, "Error parsing liquidity string: " + liquidityStr);
-                                }
-                            }
-                        }
-                    } catch (Exception e) {
-                        Log.e(TAG, "Error parsing raw exchange data: " + e.getMessage());
-                    }
-                }
-                
-                // If we still don't have real data, use asset-specific defaults
-                if (displayLiquidity <= 0) {
-                    // Use different defaults for different assets
-                    if (symbol.startsWith("BTC")) {
-                        displayLiquidity = 500000.0; // $500K for BTC
-                    } else if (symbol.startsWith("ETH")) {
-                        displayLiquidity = 200000.0; // $200K for ETH
-                    } else {
-                        displayLiquidity = 50000.0; // $50K for others
-                    }
-                    Log.d(TAG, "Using asset-specific default for " + symbol + ": " + displayLiquidity);
-                }
-                
-                // Set the liquidity display
-                liquidityTextView.setText(currencyFormatter.format(displayLiquidity));
-                
-                // Update optimal trade size
-                double optimalSize = calculateOptimalTradeSize(displayLiquidity);
-                optimalSizeTextView.setText(currencyFormatter.format(optimalSize));
-                
-            } catch (Exception e) {
-                Log.e(TAG, "Error in liquidity calculation: " + e.getMessage(), e);
-                liquidityTextView.setText("$50,000.00"); // Fallback
+            } catch (InterruptedException e) {
+                executorService.shutdownNow();
+                Thread.currentThread().interrupt();
             }
-            
-            // Update strategy suggestions
-            updateStrategySuggestions();
-        });
-    }
-    
-    @Override
-    public void onOrderBooksUpdated(OrderBook buyOrderBook, OrderBook sellOrderBook) {
-        runOnUiThread(() -> {
-            if (buyOrderBook != null && sellOrderBook != null) {
-                String buyExchangeName = viewModel.getOpportunity().getBuyExchangeName();
-                String sellExchangeName = viewModel.getOpportunity().getSellExchangeName();
-                
-                chartManager.setupMarketDepthChart(marketDepthChart, buyOrderBook, sellOrderBook,
-                        buyExchangeName, sellExchangeName);
-            }
-        });
-    }
-    
-    @Override
-    public void onTickersUpdated(List<Ticker> buyTickers, List<Ticker> sellTickers) {
-        runOnUiThread(() -> {
-            if (buyTickers != null && !buyTickers.isEmpty() && 
-                sellTickers != null && !sellTickers.isEmpty()) {
-                String buyExchangeName = viewModel.getOpportunity().getBuyExchangeName();
-                String sellExchangeName = viewModel.getOpportunity().getSellExchangeName();
-                
-                chartManager.setupPriceHistoryChart(priceHistoryChart, buyTickers, sellTickers,
-                        buyExchangeName, sellExchangeName);
-            }
-        });
-    }
-    
-    @Override
-    public void onError(String errorMessage) {
-        runOnUiThread(() -> {
-            Toast.makeText(this, errorMessage, Toast.LENGTH_SHORT).show();
-        });
-    }
-    
-    /**
-     * Calculate total liquidity from order books in USD
-     */
-    private double calculateTotalLiquidity(OrderBook buyOrderBook, OrderBook sellOrderBook) {
-        // Get a basic estimate based on the asset
-        String symbol = viewModel.getOpportunity().getSymbol();
-        
-        // Return some reasonable default values based on asset
-        if (symbol.startsWith("BTC")) {
-            return 500000.0; // $500K for BTC
-        } else if (symbol.startsWith("ETH")) {
-            return 200000.0; // $200K for ETH
-        } else {
-            return 50000.0; // $50K for others
         }
     }
     
     /**
-     * Get liquidity directly from exchange APIs, bypassing all abstractions
+     * Initialize UI components
      */
-    private double getDirectExchangeLiquidity() {
-        // Just use the simplified calculation instead
-        String symbol = viewModel.getOpportunity().getSymbol();
+    private void initializeComponents() {
+        // Basic Info
+        symbolText = findViewById(R.id.symbolText);
+        buyExchangeText = findViewById(R.id.buyExchangeText);
+        sellExchangeText = findViewById(R.id.sellExchangeText);
+        buyPriceText = findViewById(R.id.buyPriceText);
+        sellPriceText = findViewById(R.id.sellPriceText);
+        profitText = findViewById(R.id.profitText);
+        buyExchangeLogo = findViewById(R.id.buyExchangeLogo);
+        sellExchangeLogo = findViewById(R.id.sellExchangeLogo);
         
-        // Return some reasonable default values based on asset
-        if (symbol.startsWith("BTC")) {
-            return 500000.0; // $500K for BTC
-        } else if (symbol.startsWith("ETH")) {
-            return 200000.0; // $200K for ETH
-        } else {
-            return 50000.0; // $50K for others
-        }
+        // Financial Details
+        buyFeeText = findViewById(R.id.buyFeeText);
+        sellFeeText = findViewById(R.id.sellFeeText);
+        netProfitText = findViewById(R.id.netProfitText);
+        slippageText = findViewById(R.id.slippageText);
+        totalCostText = findViewById(R.id.totalCostText);
+        
+        // Risk Assessment
+        riskLevelText = findViewById(R.id.riskLevelText);
+        liquidityText = findViewById(R.id.liquidityText);
+        volatilityText = findViewById(R.id.volatilityText);
+        executionTimeText = findViewById(R.id.executionTimeText);
+        riskIndicator = findViewById(R.id.riskIndicator);
+        riskProgressBar = findViewById(R.id.riskProgressBar);
+        
+        // Action Buttons
+        refreshButton = findViewById(R.id.refreshButton);
+        simulateButton = findViewById(R.id.simulateButton);
+        loadingProgress = findViewById(R.id.loadingProgress);
     }
     
     /**
-     * Calculate optimal trade size based on liquidity amount
+     * Display opportunity data in the UI
      */
-    private double calculateOptimalTradeSize(double liquidityAmount) {
-        // Use a percentage of the actual liquidity as the optimal trade size
-        // Typically 2-5% of available liquidity is considered safe
-        final double SAFE_PERCENTAGE = 0.03; // 3% of liquidity
-        
-        // Set minimum and maximum trade sizes
-        final double MIN_TRADE_SIZE = 100.0;  // $100 minimum
-        final double MAX_TRADE_SIZE = 50000.0; // $50,000 maximum
-        
-        if (liquidityAmount <= 0) {
-            return MIN_TRADE_SIZE; // Default if we have no liquidity data
-        }
-        
-        double calculatedSize = liquidityAmount * SAFE_PERCENTAGE;
-        Log.d(TAG, "Calculated optimal trade size: " + calculatedSize + 
-                 " (3% of liquidity: " + liquidityAmount + ")");
-        
-        return Math.max(MIN_TRADE_SIZE, Math.min(calculatedSize, MAX_TRADE_SIZE));
-    }
-    
-    /**
-     * Update strategy suggestions based on metrics
-     */
-    private void updateStrategySuggestions() {
-        if (strategyTextView == null) return;
-        
-        StringBuilder suggestions = new StringBuilder();
-        ArbitrageOpportunity opportunity = viewModel.getOpportunity();
-        
-        // Only proceed if we have complete data
+    private void displayOpportunityData() {
         if (opportunity == null) {
+            showError("Invalid opportunity data");
             return;
         }
         
-        // Base suggestion on profit percentage
-        double profit = viewModel.getCurrentProfit().getValue() != null ?
-                viewModel.getCurrentProfit().getValue() : opportunity.getPercentageProfit() / 100.0;
-        
-        if (profit > 0.03) { // 3%+
-            suggestions.append("• High profit opportunity: Consider quick execution\n");
-        } else if (profit > 0.01) { // 1-3%
-            suggestions.append("• Moderate profit: Balance speed with careful order sizing\n");
-        } else {
-            suggestions.append("• Low profit margin: Consider waiting for better opportunities\n");
-        }
-        
-        // Add suggestions based on exchanges
-        suggestions.append("• ").append(opportunity.getBuyExchangeName())
-                .append(" → ").append(opportunity.getSellExchangeName())
-                .append(": Ensure funded accounts on both\n");
-        
-        // Add time-based suggestion
-        Integer timeSeconds = viewModel.getTimeEstimateSeconds().getValue();
-        if (timeSeconds != null) {
-            int minutes = timeSeconds / 60;
-            int seconds = timeSeconds % 60;
-            suggestions.append("• Estimated execution time: ")
-                    .append(String.format("%dm %ds", minutes, seconds))
-                    .append(" - Plan accordingly\n");
-        }
-        
-        // Check volatility text for volatility-based suggestions
-        String volatilityLevel = volatilityTextView.getText().toString();
-        if ("LOW".equals(volatilityLevel)) {
-            suggestions.append("• Low volatility: Stable prices favorable for execution\n")
-                      .append("  - Consider larger trade sizes\n")
-                      .append("  - Market order execution should have minimal slippage\n")
-                      .append("  - Good conditions for longer arbitrage operations\n");
-        } else if ("MEDIUM".equals(volatilityLevel)) {
-            suggestions.append("• Medium volatility: Moderate price fluctuations expected\n")
-                      .append("  - Use moderate trade sizes\n")
-                      .append("  - Monitor prices during execution\n")
-                      .append("  - Consider limit orders for better execution\n");
-        } else if ("HIGH".equals(volatilityLevel)) {
-            suggestions.append("• High volatility: Rapidly changing prices detected\n")
-                      .append("  - Use smaller trade sizes to reduce risk\n")
-                      .append("  - Execute quickly once committed\n")
-                      .append("  - Consider canceling if price moves against you\n")
-                      .append("  - Higher profit potential but also higher risk\n");
-        }
-        
-        // Add liquidity-based suggestion using real exchange data
-        Double combinedLiquidity = viewModel.getCombinedLiquidity().getValue();
-        Double optimalSize = viewModel.getOptimalTradeSize().getValue();
-        
-        if (optimalSize != null && optimalSize > 0) {
-            suggestions.append("• Optimal trade size: ")
-                    .append(currencyFormatter.format(optimalSize))
-                    .append(" (based on real-time liquidity)\n");
+        try {
+            // Set loading state
+            setLoadingState(true);
             
-            if (combinedLiquidity != null) {
-                suggestions.append("• Market liquidity: ")
-                        .append(currencyFormatter.format(combinedLiquidity))
-                        .append(" available across both exchanges\n");
+            // Basic Info - with null checks
+            String symbol = opportunity.getNormalizedSymbol();
+            symbolText.setText(symbol != null ? symbol : "Unknown");
+            
+            String buyExchange = opportunity.getBuyExchangeName();
+            buyExchangeText.setText(buyExchange != null ? buyExchange : "Unknown");
+            
+            String sellExchange = opportunity.getSellExchangeName();
+            sellExchangeText.setText(sellExchange != null ? sellExchange : "Unknown");
+            
+            // Set exchange logos - with null checks
+            setExchangeLogo(buyExchangeLogo, buyExchange);
+            setExchangeLogo(sellExchangeLogo, sellExchange);
+            
+            // Format and display prices - with safety checks
+            double buyPrice = opportunity.getBuyPrice();
+            double sellPrice = opportunity.getSellPrice();
+            
+            // Verify prices are valid
+            if (buyPrice <= 0) buyPrice = 0.0001;
+            if (sellPrice <= 0) sellPrice = 0.0001;
+            
+            String buyPriceFormatted = formatPrice(buyPrice);
+            String sellPriceFormatted = formatPrice(sellPrice);
+            buyPriceText.setText(buyPriceFormatted);
+            sellPriceText.setText(sellPriceFormatted);
+            
+            // Profit percentage - with safety checks
+            double profitPercent;
+            try {
+                profitPercent = opportunity.getProfitPercent();
+                if (Double.isNaN(profitPercent) || Double.isInfinite(profitPercent)) {
+                    profitPercent = 0.0;
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error getting profit percent: " + e.getMessage());
+                profitPercent = 0.0;
             }
-        } else if (combinedLiquidity != null) {
-            // Fallback if we don't have optimal size
-            suggestions.append("• Market liquidity: ")
-                    .append(currencyFormatter.format(combinedLiquidity))
-                    .append(" available for trading\n");
-        }
-        
-        // Add slippage warning for large trades if we have data
-        if (viewModel.getLiquidityMetrics().getValue() != null) {
-            double largeTradeSize = 50000; // Consider $50K a large trade
-            double slippage = viewModel.calculateSlippageForTradeSize(largeTradeSize);
             
-            if (slippage > 0.01) {
-                suggestions.append("• WARNING: Large trades (")
-                        .append(currencyFormatter.format(largeTradeSize))
-                        .append(") will incur ~")
-                        .append(String.format("%.2f", slippage * 100))
-                        .append("% slippage\n");
+            profitText.setText(String.format(Locale.US, "%.2f%%", profitPercent));
+            
+            // Set profit text color based on percentage
+            if (profitPercent >= 1.0) {
+                profitText.setTextColor(Color.parseColor("#00C087")); // Green
+            } else if (profitPercent >= 0.5) {
+                profitText.setTextColor(Color.parseColor("#FF9800")); // Orange
+            } else {
+                profitText.setTextColor(Color.parseColor("#FF3B30")); // Red
             }
-        }
-        
-        strategyTextView.setText(suggestions.toString());
-    }
-    
-    /**
-     * Show dialog for detailed trade simulation with slippage analysis
-     */
-    private void showTradeSimulationDialog() {
-        AlertDialog.Builder builder = new MaterialAlertDialogBuilder(this)
-                .setTitle("Simulate Trade")
-                .setView(R.layout.dialog_trade_simulation)
-                .setPositiveButton("Close", null);
-        
-        AlertDialog dialog = builder.create();
-        dialog.show();
-        
-        // Set up UI components after dialog is shown
-        EditText tradeAmountInput = dialog.findViewById(R.id.tradeAmountInput);
-        MaterialButton simulateButton = dialog.findViewById(R.id.simulateButton);
-        TextView simulationResultView = dialog.findViewById(R.id.simulationResult);
-        
-        // Initialize views
-        if (tradeAmountInput != null && simulateButton != null && simulationResultView != null) {
-            // Set default amount
-            tradeAmountInput.setText("1000");
             
-            // Set up button click
-            simulateButton.setOnClickListener(v -> {
+            // Financial details - with safety checks
+            double buyFee = 0.1;  // Default 0.1%
+            double sellFee = 0.1; // Default 0.1%
+            
+            try {
+                buyFee = opportunity.getBuyFeePercentage();
+                if (buyFee <= 0 || buyFee > 100 || Double.isNaN(buyFee)) {
+                    buyFee = 0.1; // Default to 0.1% if invalid
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error getting buy fee: " + e.getMessage());
+            }
+            
+            try {
+                sellFee = opportunity.getSellFeePercentage();
+                if (sellFee <= 0 || sellFee > 100 || Double.isNaN(sellFee)) {
+                    sellFee = 0.1; // Default to 0.1% if invalid
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error getting sell fee: " + e.getMessage());
+            }
+            
+            buyFeeText.setText(String.format(Locale.US, "%.2f%%", buyFee));
+            sellFeeText.setText(String.format(Locale.US, "%.2f%%", sellFee));
+            
+            // Net profit (profit - fees) - with safety checks
+            double netProfit = profitPercent - buyFee - sellFee;
+            if (netProfit < -100) netProfit = -100; // Limit extremely negative values
+            netProfitText.setText(String.format(Locale.US, "%.2f%%", netProfit));
+            netProfitText.setTextColor(profitText.getCurrentTextColor());
+            
+            // Ensure risk assessment exists
+            RiskAssessment risk = null;
+            try {
+                risk = RiskAssessmentAdapter.getRiskAssessment(opportunity);
+            } catch (Exception e) {
+                Log.e(TAG, "Error getting risk assessment: " + e.getMessage());
+            }
+            
+            // Estimated slippage (get from risk assessment or calculate)
+            double slippage = 0.5; // Default 0.5%
+            if (risk != null) {
                 try {
-                    double amount = Double.parseDouble(tradeAmountInput.getText().toString());
-                    String result = formatSimulationResultWithSlippage(amount);
-                    simulationResultView.setText(result);
-                    simulationResultView.setVisibility(View.VISIBLE);
-                } catch (NumberFormatException e) {
-                    simulationResultView.setText("Please enter a valid amount");
-                    simulationResultView.setVisibility(View.VISIBLE);
-                }
-            });
-            
-            // Auto-update on text changes
-            tradeAmountInput.addTextChangedListener(new TextWatcher() {
-                @Override
-                public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
-                
-                @Override
-                public void onTextChanged(CharSequence s, int start, int before, int count) {}
-                
-                @Override
-                public void afterTextChanged(Editable s) {
-                    try {
-                        double amount = Double.parseDouble(s.toString());
-                        String result = formatSimulationResultWithSlippage(amount);
-                        simulationResultView.setText(result);
-                        simulationResultView.setVisibility(View.VISIBLE);
-                    } catch (NumberFormatException e) {
-                        // Ignore parsing errors during typing
+                    slippage = risk.getSlippageRisk() * 100;
+                    if (Double.isNaN(slippage) || slippage <= 0) {
+                        slippage = 0.5;
                     }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error getting slippage: " + e.getMessage());
                 }
-            });
+            }
+            slippageText.setText(String.format(Locale.US, "%.2f%%", slippage));
+            
+            // Total cost - example value based on standard position size
+            double standardPositionSize = 1000.0; // $1000 USD position
+            totalCostText.setText(currencyFormat.format(standardPositionSize));
+            
+            // Risk assessment
+            displayRiskAssessment(risk);
+            
+            // Finish loading
+            setLoadingState(false);
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Fatal error displaying opportunity data", e);
+            Toast.makeText(this, "Error displaying opportunity: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            setLoadingState(false);
         }
     }
     
     /**
-     * Format simulation result as a detailed string including slippage
+     * Display risk assessment data
+     * @param risk The risk assessment object
+     * 
+     * NOTE: In our risk system:
+     * - Higher risk scores (0.8-1.0) = LOWER risk = BETTER/SAFER
+     * - Lower risk scores (0.0-0.2) = HIGHER risk = WORSE/RISKIER
+     * This is why higher progress bar values are green (good) and lower values are red (bad).
      */
-    private String formatSimulationResultWithSlippage(double amount) {
-        ArbitrageOpportunity opportunity = viewModel.getOpportunity();
-        
-        double buyPrice = viewModel.getCurrentBuyPrice().getValue() != null ? 
-                viewModel.getCurrentBuyPrice().getValue() : opportunity.getBuyPrice();
-        double sellPrice = viewModel.getCurrentSellPrice().getValue() != null ? 
-                viewModel.getCurrentSellPrice().getValue() : opportunity.getSellPrice();
-        double buyFee = opportunity.getBuyFee();
-        double sellFee = opportunity.getSellFee();
-        
-        // Get slippage for this size from liquidity analysis
-        double buySlippage = viewModel.calculateSlippageForTradeSize(amount);
-        double sellSlippage = buySlippage; // Simplification - could be different in practice
-        
-        // Adjust prices for slippage
-        double effectiveBuyPrice = buyPrice * (1 + buySlippage);
-        double effectiveSellPrice = sellPrice * (1 - sellSlippage);
-        
-        // Calculate coin amount purchased
-        double coinAmount = amount / effectiveBuyPrice;
-        double buyFeeAmount = amount * buyFee;
-        double buySlippageAmount = amount * buySlippage;
-        
-        // Calculate sell proceeds
-        double sellAmount = coinAmount * effectiveSellPrice;
-        double sellFeeAmount = sellAmount * sellFee;
-        double sellSlippageAmount = sellAmount * sellSlippage;
-        
-        // Calculate net profit
-        double netProfit = sellAmount - sellFeeAmount - amount - buyFeeAmount;
-        double profitPercentage = (netProfit / amount) * 100;
-        
-        // Format result
-        StringBuilder result = new StringBuilder();
-        DecimalFormat usdFormat = new DecimalFormat("$#,##0.00");
-        DecimalFormat coinFormat = new DecimalFormat("#,##0.00000000");
-        DecimalFormat percentFormat = new DecimalFormat("#,##0.00");
-        
-        result.append("Trade simulation for ")
-                .append(usdFormat.format(amount))
-                .append(":\n\n");
+    private void displayRiskAssessment(RiskAssessment risk) {
+        try {
+            if (risk == null) {
+                Log.w(TAG, "Risk assessment is null, creating default");
+                // Create a default risk assessment if none exists
+                risk = new RiskAssessment();
+                risk.setOverallRiskScore(0.5);
+                risk.setLiquidityScore(0.5);
+                risk.setVolatilityScore(0.5);
+                risk.setSlippageRisk(0.01); // Default 1% slippage
+                risk.setBuyFeePercentage(0.1); // Default 0.1% fee
+                risk.setSellFeePercentage(0.1); // Default 0.1% fee
                 
-        result.append("Buy: ")
-                .append(coinFormat.format(coinAmount))
-                .append(" ").append(opportunity.getSymbol())
-                .append(" @ ").append(usdFormat.format(effectiveBuyPrice))
-                .append(" (incl. slippage)\n");
-                
-        result.append("Buy Fee: ")
-                .append(usdFormat.format(buyFeeAmount))
-                .append(" (").append(percentFormat.format(buyFee * 100)).append("%)")
-                .append("\n");
-                
-        result.append("Buy Slippage: ")
-                .append(usdFormat.format(buySlippageAmount))
-                .append(" (").append(percentFormat.format(buySlippage * 100)).append("%)")
-                .append("\n\n");
-        
-        result.append("Sell: ")
-                .append(coinFormat.format(coinAmount))
-                .append(" ").append(opportunity.getSymbol())
-                .append(" @ ").append(usdFormat.format(effectiveSellPrice))
-                .append(" (incl. slippage)\n");
-                
-        result.append("Sell Proceeds: ")
-                .append(usdFormat.format(sellAmount))
-                .append("\n");
-                
-        result.append("Sell Fee: ")
-                .append(usdFormat.format(sellFeeAmount))
-                .append(" (").append(percentFormat.format(sellFee * 100)).append("%)")
-                .append("\n");
-                
-        result.append("Sell Slippage: ")
-                .append(usdFormat.format(sellSlippageAmount))
-                .append(" (").append(percentFormat.format(sellSlippage * 100)).append("%)")
-                .append("\n\n");
-        
-        result.append("Net Profit: ")
-                .append(usdFormat.format(netProfit))
-                .append("\n");
-                
-        result.append("Profit %: ")
-                .append(percentFormat.format(profitPercentage))
-                .append("%");
-        
-        return result.toString();
-    }
-    
-    /**
-     * Execute the arbitrage opportunity (placeholder)
-     */
-    private void executeArbitrage() {
-        new MaterialAlertDialogBuilder(this)
-                .setTitle("Execute Arbitrage")
-                .setMessage("Are you sure you want to execute this arbitrage opportunity?")
-                .setPositiveButton("Execute", (dialog, which) -> {
-                    // TODO: Implement actual arbitrage execution
-                    Toast.makeText(this, "Execution functionality is not yet implemented", 
-                            Toast.LENGTH_SHORT).show();
-                })
-                .setNegativeButton("Cancel", null)
-                .show();
-    }
-    
-    /**
-     * Display raw data from exchanges in a dialog
-     */
-    private void showRawExchangeData() {
-        loadingIndicator.setVisibility(View.VISIBLE);
-        
-        // Run in background to not block UI
-        new Thread(() -> {
-            String rawData = viewModel.getRawExchangeData();
-            
-            // Update UI on main thread
-            runOnUiThread(() -> {
-                loadingIndicator.setVisibility(View.GONE);
-                
-                // Create and display a dialog with the raw data
-                AlertDialog.Builder builder = new MaterialAlertDialogBuilder(this)
-                    .setTitle("Raw Exchange Data")
-                    .setMessage(rawData)
-                    .setPositiveButton("Close", null);
-                
-                AlertDialog dialog = builder.create();
-                
-                // Make dialog scrollable for large amounts of data
-                dialog.setOnShowListener(dialogInterface -> {
-                    TextView messageView = dialog.findViewById(android.R.id.message);
-                    if (messageView != null) {
-                        messageView.setTextIsSelectable(true);
-                        messageView.setVerticalScrollBarEnabled(true);
+                // Register this default risk on the opportunity
+                if (opportunity != null) {
+                    try {
+                        RiskAssessmentAdapter.setRiskAssessment(opportunity, risk);
+                        Log.d(TAG, "Set default risk assessment on opportunity");
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error setting default risk assessment: " + e.getMessage());
                     }
-                });
+                }
+            }
+            
+            // Get risk level - with safety checks
+            double riskScore = 0.5; // Default to medium risk
+            try {
+                riskScore = risk.getOverallRiskScore();
+                if (Double.isNaN(riskScore) || riskScore < 0 || riskScore > 1) {
+                    riskScore = 0.5; // Default to 0.5 if invalid
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error getting risk score: " + e.getMessage());
+            }
+            
+            String riskLevel = "Medium Risk"; // Default risk level
+            int riskColor = Color.YELLOW;     // Default risk color
+            
+            try {
+                riskLevel = unifiedRiskCalculator.getRiskLevelText(riskScore);
+                riskColor = unifiedRiskCalculator.getRiskColor(riskScore);
+            } catch (Exception e) {
+                Log.e(TAG, "Error getting risk level or color: " + e.getMessage());
+            }
+            
+            Log.d(TAG, "Displaying risk assessment - Score: " + riskScore + 
+                  ", Level: " + riskLevel + 
+                  ", Liquidity: " + risk.getLiquidityScore() + 
+                  ", Volatility: " + risk.getVolatilityScore());
+            
+            // Set risk level text and color
+            riskLevelText.setText(riskLevel);
+            riskLevelText.setTextColor(riskColor);
+            
+            // Set risk indicator color
+            riskIndicator.setBackgroundColor(riskColor);
+            
+            // Set risk progress (0-100)
+            int riskProgress = (int)(riskScore * 100);
+            riskProgressBar.setProgress(riskProgress);
+            
+            // Set liquidity score - with safety checks
+            double liquidityScore = 0.5; // Default to medium liquidity
+            try {
+                liquidityScore = risk.getLiquidityScore();
+                if (Double.isNaN(liquidityScore) || liquidityScore < 0 || liquidityScore > 1) {
+                    liquidityScore = 0.5; // Default if invalid
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error getting liquidity score: " + e.getMessage());
+            }
+            String liquidityLevel = getQualityLevel(liquidityScore);
+            liquidityText.setText(liquidityLevel);
+            
+            // Set volatility score - with safety checks
+            double volatilityScore = 0.5; // Default to medium volatility
+            try {
+                volatilityScore = risk.getVolatilityScore();
+                if (Double.isNaN(volatilityScore) || volatilityScore < 0 || volatilityScore > 1) {
+                    volatilityScore = 0.5; // Default if invalid
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error getting volatility score: " + e.getMessage());
+            }
+            // Display volatility level without inverting (use consistent scale)
+            String volatilityLevel = getQualityLevel(volatilityScore);
+            volatilityText.setText(volatilityLevel);
+            
+            // Estimated execution time (minutes) - with safety checks
+            double executionTime = 3.0; // Default to 3 minutes
+            try {
+                executionTime = risk.getExecutionTimeEstimate();
+                if (Double.isNaN(executionTime) || executionTime <= 0) {
+                    executionTime = estimateExecutionTime(opportunity, risk);
+                    if (Double.isNaN(executionTime) || executionTime <= 0) {
+                        executionTime = 3.0; // Default if all else fails
+                    }
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error getting execution time: " + e.getMessage());
+            }
+            
+            executionTimeText.setText(formatExecutionTime(executionTime));
+            Log.d(TAG, "Risk display complete - Execution time: " + formatExecutionTime(executionTime));
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error displaying risk assessment", e);
+            // Set default values for UI in case of error
+            riskLevelText.setText("Medium Risk");
+            liquidityText.setText("Average");
+            volatilityText.setText("Average");
+            executionTimeText.setText("3.0 min");
+            riskIndicator.setBackgroundColor(Color.YELLOW);
+            riskProgressBar.setProgress(50);
+        }
+    }
+    
+    /**
+     * Format execution time nicely
+     * @param minutes Execution time in minutes
+     * @return Formatted time string
+     */
+    private String formatExecutionTime(double minutes) {
+        // Safety check for invalid values
+        if (Double.isNaN(minutes) || Double.isInfinite(minutes) || minutes <= 0) {
+            return "3.0 min"; // Default value
+        }
+        
+        try {
+            if (minutes < 1.0) {
+                // Show as seconds for very short times
+                int seconds = (int)(minutes * 60.0);
+                return seconds + " sec";
+            } else if (minutes < 60.0) {
+                // Show as minutes for medium times
+                return String.format(Locale.US, "%.1f min", minutes);
+            } else {
+                // Show as hours for long times
+                return String.format(Locale.US, "%.1f hrs", minutes / 60.0);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error formatting execution time: " + e.getMessage());
+            return "3.0 min"; // Default in case of error
+        }
+    }
+    
+    /**
+     * Estimate execution time based on opportunity and risk assessment
+     * @param opportunity The arbitrage opportunity
+     * @param risk The risk assessment
+     * @return Estimated execution time in minutes
+     */
+    private int estimateExecutionTime(ArbitrageOpportunity opportunity, RiskAssessment risk) {
+        if (opportunity == null) {
+            return 5; // Default 5 minutes
+        }
+        
+        // Base execution time of 3 minutes
+        int baseTime = 3;
+        
+        // Add time based on exchange names
+        String buyExchange = opportunity.getBuyExchangeName().toLowerCase();
+        String sellExchange = opportunity.getSellExchangeName().toLowerCase();
+        
+        // Slower exchanges take longer
+        int exchangeTimeFactor = 0;
+        if (buyExchange.contains("kraken") || sellExchange.contains("kraken")) {
+            exchangeTimeFactor += 3;
+        }
+        if (buyExchange.contains("coinbase") || sellExchange.contains("coinbase")) {
+            exchangeTimeFactor += 2;
+        }
+        
+        // Lower risk scores (higher risk) mean longer execution time
+        // Use the risk score directly: 0.0 = highest risk (longest time), 1.0 = lowest risk (shortest time)
+        int riskTimeFactor = (int)((1.0 - (risk != null ? risk.getOverallRiskScore() : 0.5)) * 10);
+        
+        // Calculate total time
+        int totalTime = baseTime + exchangeTimeFactor + riskTimeFactor;
+        
+        // Ensure minimum of 1 minute
+        return Math.max(1, totalTime);
+    }
+    
+    /**
+     * Refresh opportunity data
+     */
+    private void refreshData() {
+        if (opportunity == null) return;
+        
+        // Set loading state
+        setLoadingState(true);
+        
+        // Use executor service to perform refresh in background
+        executorService.submit(() -> {
+            try {
+                Log.d(TAG, "Starting data refresh for " + opportunity.getSymbol());
                 
-                dialog.show();
-            });
-        }).start();
+                // Get the exchange services from the registry
+                ExchangeRegistry registry = ExchangeRegistry.getInstance(new LoggingNotificationService());
+                ExchangeService buyExchangeService = registry.getExchange(opportunity.getBuyExchangeName().toLowerCase());
+                ExchangeService sellExchangeService = registry.getExchange(opportunity.getSellExchangeName().toLowerCase());
+                
+                if (buyExchangeService == null || sellExchangeService == null) {
+                    runOnUiThread(() -> {
+                        Snackbar.make(findViewById(android.R.id.content), 
+                                "Could not find exchange services", Snackbar.LENGTH_SHORT).show();
+                        setLoadingState(false);
+                    });
+                    return;
+                }
+                
+                // Get tickers for both exchanges
+                Ticker buyTicker = buyExchangeService.getTickerData(opportunity.getSymbolBuy());
+                Ticker sellTicker = sellExchangeService.getTickerData(opportunity.getSymbolSell());
+                
+                // Update prices if tickers are available
+                if (buyTicker != null && sellTicker != null) {
+                    double newBuyPrice = buyTicker.getLastPrice();
+                    double newSellPrice = sellTicker.getLastPrice();
+                    
+                    Log.d(TAG, String.format("Fetched prices - Buy: %.8f, Sell: %.8f", newBuyPrice, newSellPrice));
+                    
+                    // Calculate new profit percentage
+                    double newProfitPercent = ((newSellPrice - newBuyPrice) / newBuyPrice) * 100;
+                    
+                    // Get proper fee information from exchange services
+                    double buyFee = buyExchangeService.getFeePercentage(opportunity.getSymbolBuy(), false) * 100; // Convert to percentage
+                    double sellFee = sellExchangeService.getFeePercentage(opportunity.getSymbolSell(), true) * 100; // Convert to percentage
+                    
+                    Log.d(TAG, String.format("Fetched fees - Buy: %.4f%%, Sell: %.4f%%", buyFee, sellFee));
+                    
+                    // Register correct fees in the opportunity
+                    opportunity.setBuyFeePercentage(buyFee);
+                    opportunity.setSellFeePercentage(sellFee);
+                    
+                    // Update the opportunity with new data
+                    opportunity.setBuyTicker(buyTicker);
+                    opportunity.setSellTicker(sellTicker);
+                    opportunity.setTimestamp(new Date());
+                    
+                    // Ensure consistent risk values with the new data
+                    opportunity = RiskEnsurer.ensureRiskValues(opportunity, true);
+                    
+                    // Update UI on main thread
+                    runOnUiThread(() -> {
+                        displayOpportunityData();
+                        Snackbar.make(findViewById(android.R.id.content), 
+                                "Data refreshed with accurate risk values", Snackbar.LENGTH_SHORT).show();
+                    });
+                } else {
+                    Log.e(TAG, "Failed to get ticker data - Buy ticker: " + 
+                          (buyTicker == null ? "null" : "ok") + ", Sell ticker: " + 
+                          (sellTicker == null ? "null" : "ok"));
+                    
+                    runOnUiThread(() -> {
+                        Snackbar.make(findViewById(android.R.id.content), 
+                                "Could not get latest prices", Snackbar.LENGTH_SHORT).show();
+                        setLoadingState(false);
+                    });
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error refreshing data", e);
+                runOnUiThread(() -> {
+                    Snackbar.make(findViewById(android.R.id.content), 
+                            "Error: " + e.getMessage(), Snackbar.LENGTH_SHORT).show();
+                    setLoadingState(false);
+                });
+            }
+        });
+    }
+    
+    /**
+     * Simulate a trade for demonstration purposes
+     */
+    private void simulateTrade() {
+        // Show a dialog with trade simulation details
+        // This is just a placeholder - in a real app this would execute the trade
+        Toast.makeText(this, "Trade simulation not implemented in this demo", 
+                Toast.LENGTH_SHORT).show();
+    }
+    
+    /**
+     * Set up button click listeners
+     */
+    private void setupActionListeners() {
+        refreshButton.setOnClickListener(v -> refreshData());
+        simulateButton.setOnClickListener(v -> simulateTrade());
+    }
+    
+    /**
+     * Set loading state
+     * @param isLoading Whether the view is in loading state
+     */
+    private void setLoadingState(boolean isLoading) {
+        loadingProgress.setVisibility(isLoading ? View.VISIBLE : View.GONE);
+        refreshButton.setEnabled(!isLoading);
+        simulateButton.setEnabled(!isLoading);
+    }
+    
+    /**
+     * Start auto-refresh
+     */
+    private void startAutoRefresh() {
+        refreshHandler.postDelayed(new Runnable() {
+    @Override
+            public void run() {
+                refreshData();
+                refreshHandler.postDelayed(this, AUTO_REFRESH_INTERVAL);
+            }
+        }, AUTO_REFRESH_INTERVAL);
+    }
+    
+    /**
+     * Stop auto-refresh
+     */
+    private void stopAutoRefresh() {
+        refreshHandler.removeCallbacksAndMessages(null);
+    }
+    
+    /**
+     * Format price based on value
+     * @param price The price to format
+     * @return Formatted price string
+     */
+    private String formatPrice(double price) {
+        // Check for invalid values
+        if (Double.isNaN(price) || Double.isInfinite(price)) {
+            return "0.00";
+        }
+        
+        // Negative prices don't make sense in this context
+        if (price < 0) {
+            price = 0;
+        }
+        
+        try {
+            if (price < 0.01) {
+                return String.format(Locale.US, "%.8f", price);
+            } else if (price < 1.0) {
+                return String.format(Locale.US, "%.6f", price);
+            } else if (price < 1000.0) {
+                return String.format(Locale.US, "%.4f", price);
+            } else {
+                return String.format(Locale.US, "%.2f", price);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error formatting price: " + e.getMessage());
+            return "0.00";
+        }
+    }
+    
+    /**
+     * Set exchange logo based on exchange name
+     * @param logoView ImageView to set logo in
+     * @param exchangeName Name of exchange
+     */
+    private void setExchangeLogo(ImageView logoView, String exchangeName) {
+        if (exchangeName == null || exchangeName.isEmpty()) {
+            logoView.setImageResource(R.drawable.exchange_icon_placeholder);
+            return;
+        }
+        
+        // Convert to lowercase for case-insensitive matching
+        String exchange = exchangeName.toLowerCase();
+        
+        // Set logo based on exchange name
+        int logoResource;
+        switch (exchange) {
+            case "binance":
+                logoResource = R.drawable.binance_logo;
+                break;
+            case "coinbase":
+                logoResource = R.drawable.coinbase_logo;
+                break;
+            case "kraken":
+                logoResource = R.drawable.kraken_logo;
+                break;
+            case "okx":
+                logoResource = R.drawable.okx_logo;
+                break;
+            case "bybit":
+                logoResource = R.drawable.bybit_logo;
+                break;
+            default:
+                logoResource = R.drawable.exchange_icon_placeholder;
+                break;
+        }
+        
+        logoView.setImageResource(logoResource);
+    }
+    
+    /**
+     * Get quality level text (for liquidity, volatility)
+     * @param score Quality score (0-1, higher is better/lower risk)
+     * @return Quality level text
+     */
+    private String getQualityLevel(double score) {
+        if (score >= 0.8) {
+            return "Excellent (Low Risk)";
+        } else if (score >= 0.6) {
+            return "Good";
+        } else if (score >= 0.4) {
+            return "Average";
+        } else if (score >= 0.2) {
+            return "Poor";
+        } else {
+            return "Very Poor (High Risk)";
+        }
+    }
+    
+    /**
+     * Estimate execution time based on exchange services
+     * @param buyExchange Buy exchange service
+     * @param sellExchange Sell exchange service
+     * @return Estimated execution time in minutes
+     */
+    private double estimateExecutionTime(ExchangeService buyExchange, ExchangeService sellExchange) {
+        // Base time of 2 minutes
+        double baseTime = 2.0;
+        
+        // Add time based on exchange API response times
+        double buyResponseTime = buyExchange.getEstimatedResponseTimeMs() / 1000.0 / 60.0; // Convert ms to minutes
+        double sellResponseTime = sellExchange.getEstimatedResponseTimeMs() / 1000.0 / 60.0;
+        
+        // Calculate total time (consider parallelization)
+        double totalResponseTime = Math.max(buyResponseTime, sellResponseTime);
+        
+        // Add time for potential retries and network delays
+        double networkDelayFactor = 1.5;
+        
+        return baseTime + (totalResponseTime * networkDelayFactor);
+    }
+    
+    /**
+     * Show error message and finish activity
+     * @param message Error message
+     */
+    private void showError(String message) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+        finish();
+    }
+    
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        if (item.getItemId() == android.R.id.home) {
+            onBackPressed();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+    
+    /**
+     * Simple implementation of INotificationService that logs messages
+     */
+    private class LoggingNotificationService implements INotificationService {
+        @Override
+        public void logInfo(String message) {
+            Log.i(TAG, message);
+        }
+        
+        @Override
+        public void logWarning(String message) {
+            Log.w(TAG, message);
+        }
+        
+        @Override
+        public void logError(String message, Throwable error) {
+            Log.e(TAG, message, error);
+        }
+        
+        @Override
+        public void logDebug(String message) {
+            Log.d(TAG, message);
+        }
+        
+        @Override
+        public void notify(String title, String message, String type) {
+            Log.i(TAG, "Notification: " + title + " - " + message);
+        }
+        
+        @Override
+        public void notifyArbitrageOpportunity(ArbitrageResult opportunity) {
+            Log.i(TAG, "Arbitrage opportunity found: " + opportunity);
+        }
+        
+        @Override
+        public void notifyArbitrageError(Throwable error) {
+            Log.e(TAG, "Arbitrage error", error);
+        }
     }
 } 

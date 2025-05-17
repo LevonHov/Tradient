@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Bottom Sheet Dialog Theme -->
+    <style name="ThemeOverlay.Tradient.BottomSheetDialog" parent="ThemeOverlay.Material3.BottomSheetDialog">
+        <item name="bottomSheetStyle">@style/Widget.Tradient.BottomSheet</item>
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@color/background</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:backgroundDimEnabled">true</item>
+        <item name="android:windowSoftInputMode">adjustResize</item>
+        <item name="android:windowAnimationStyle">@style/Animation.Tradient.BottomSheet</item>
+        <item name="android:windowIsTranslucent">true</item>
+    </style>
+
+    <style name="Widget.Tradient.BottomSheet" parent="Widget.Material3.BottomSheet">
+        <item name="shapeAppearanceOverlay">@style/ShapeAppearance.Tradient.BottomSheet</item>
+        <item name="backgroundTint">@color/card_background</item>
+        <item name="behavior_peekHeight">440dp</item>
+        <item name="behavior_hideable">true</item>
+        <item name="behavior_fitToContents">true</item>
+        <item name="behavior_draggable">true</item>
+        <item name="behavior_skipCollapsed">false</item>
+        <item name="behavior_expandedOffset">0dp</item>
+    </style>
+
+    <style name="ShapeAppearance.Tradient.BottomSheet" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSizeTopRight">24dp</item>
+        <item name="cornerSizeTopLeft">24dp</item>
+        <item name="cornerSizeBottomRight">0dp</item>
+        <item name="cornerSizeBottomLeft">0dp</item>
+    </style>
+
+    <!-- Filter Chip Style -->
+    <style name="Widget.Tradient.FilterChip" parent="Widget.Material3.Chip.Filter">
+        <item name="chipBackgroundColor">@color/chip_background_selector</item>
+        <item name="chipStrokeColor">@color/chip_stroke_selector</item>
+        <item name="chipStrokeWidth">1dp</item>
+        <item name="chipIconTint">@color/chip_icon_selector</item>
+        <item name="chipIconVisible">true</item>
+        <item name="chipEndPadding">12dp</item>
+        <item name="chipStartPadding">12dp</item>
+        <item name="android:textColor">@color/chip_text_selector</item>
+        <item name="rippleColor">@color/accent_20</item>
+    </style>
+
+    <!-- Animation for the bottom sheet -->
+    <style name="Animation.Tradient.BottomSheet" parent="@android:style/Animation">
+        <item name="android:windowEnterAnimation">@anim/bottom_sheet_slide_in</item>
+        <item name="android:windowExitAnimation">@anim/bottom_sheet_slide_out</item>
+    </style>
+
+    <!-- Material Components Dialog Theme -->
+    <style name="ThemeOverlay.MaterialComponents.Dialog.Alert" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="colorPrimary">@color/primary</item>
+        <item name="colorSurface">@color/card_background</item>
+        <item name="colorOnSurface">@color/primary_text</item>
+        <item name="android:background">@color/card_background</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowMinWidthMajor">@android:dimen/dialog_min_width_major</item>
+        <item name="android:windowMinWidthMinor">@android:dimen/dialog_min_width_minor</item>
+    </style>
+</resources> 

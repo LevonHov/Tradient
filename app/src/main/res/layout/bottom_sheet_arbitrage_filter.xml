@@ -1,0 +1,596 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/card_background">
+
+    <LinearLayout 
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:paddingStart="24dp"
+        android:paddingTop="16dp"
+        android:paddingEnd="24dp"
+        android:paddingBottom="24dp">
+
+        <!-- Drag Handle -->
+        <View
+            android:layout_width="32dp"
+            android:layout_height="4dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginBottom="16dp"
+            android:background="@drawable/bottom_sheet_drag_handle" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Filter Arbitrage Opportunities"
+            android:textColor="@color/primary_text"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:layout_marginBottom="16dp" />
+
+        <!-- Profit Percentage Section -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardBackgroundColor="@color/filter_card_bg"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/filter_card_stroke"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Profit Percentage"
+                    android:textColor="@color/filter_text_primary"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginTop="12dp">
+
+                    <TextView
+                        android:id="@+id/tvMinProfit"
+                        android:layout_width="48dp"
+                        android:layout_height="wrap_content"
+                        android:text="0.0%"
+                        android:textColor="@color/filter_text_primary"
+                        android:textSize="14sp" />
+
+                    <com.google.android.material.slider.RangeSlider
+                        android:id="@+id/sliderProfitRange"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:valueFrom="0.0"
+                        android:valueTo="50.0"
+                        android:stepSize="0.5"
+                        app:thumbColor="@color/accent"
+                        app:thumbStrokeColor="@color/white"
+                        app:thumbStrokeWidth="1dp"
+                        app:trackColorActive="@color/accent"
+                        app:trackColorInactive="@color/neutral_gray" />
+
+                    <TextView
+                        android:id="@+id/tvMaxProfit"
+                        android:layout_width="48dp"
+                        android:layout_height="wrap_content"
+                        android:text="50.0%+"
+                        android:textColor="@color/filter_text_primary"
+                        android:textSize="14sp" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Common ranges:"
+                    android:textColor="@color/filter_text_secondary"
+                    android:textSize="14sp"
+                    android:layout_marginTop="12dp" />
+
+                <HorizontalScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:scrollbars="none"
+                    android:layout_marginTop="8dp">
+
+                    <com.google.android.material.chip.ChipGroup
+                        android:id="@+id/chipGroupProfitRanges"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        app:singleSelection="true"
+                        app:selectionRequired="false"
+                        app:singleLine="true">
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chipProfit0to1"
+                            style="@style/Widget.Tradient.FilterChip"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="0-1%" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chipProfit1to3"
+                            style="@style/Widget.Tradient.FilterChip"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="1-3%" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chipProfit3to5"
+                            style="@style/Widget.Tradient.FilterChip"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="3-5%" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chipProfit5Plus"
+                            style="@style/Widget.Tradient.FilterChip"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="5%+" />
+                    </com.google.android.material.chip.ChipGroup>
+                </HorizontalScrollView>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Risk Level Section -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardBackgroundColor="@color/filter_card_bg"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/filter_card_stroke"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Risk Level"
+                    android:textColor="@color/filter_text_primary"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Select maximum acceptable risk level"
+                    android:textColor="@color/filter_text_secondary"
+                    android:textSize="14sp"
+                    android:layout_marginTop="4dp" />
+
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/chipGroupRiskLevel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    app:singleSelection="true"
+                    app:selectionRequired="true"
+                    android:layout_marginTop="12dp">
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipRiskLow"
+                        style="@style/Widget.Tradient.FilterChip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Low"
+                        app:chipBackgroundColor="@color/low_risk_bg"
+                        app:chipStrokeColor="@color/low_risk" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipRiskMedium"
+                        style="@style/Widget.Tradient.FilterChip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Medium"
+                        app:chipBackgroundColor="@color/medium_risk_bg"
+                        app:chipStrokeColor="@color/medium_risk"
+                        android:checked="true" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipRiskHigh"
+                        style="@style/Widget.Tradient.FilterChip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="High"
+                        app:chipBackgroundColor="@color/high_risk_bg"
+                        app:chipStrokeColor="@color/high_risk" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipRiskVeryHigh"
+                        style="@style/Widget.Tradient.FilterChip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Very High"
+                        app:chipBackgroundColor="@color/high_risk_bg"
+                        app:chipStrokeColor="@color/high_risk" />
+                </com.google.android.material.chip.ChipGroup>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Slippage Percentage Section -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardBackgroundColor="@color/filter_card_bg"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/filter_card_stroke"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Maximum Slippage"
+                    android:textColor="@color/filter_text_primary"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginTop="12dp">
+
+                    <TextView
+                        android:id="@+id/tvMinSlippage"
+                        android:layout_width="48dp"
+                        android:layout_height="wrap_content"
+                        android:text="0.0%"
+                        android:textColor="@color/filter_text_primary"
+                        android:textSize="14sp" />
+
+                    <com.google.android.material.slider.Slider
+                        android:id="@+id/sliderSlippage"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:valueFrom="0.0"
+                        android:valueTo="10.0"
+                        android:stepSize="0.1"
+                        android:value="2.0"
+                        app:thumbColor="@color/accent"
+                        app:thumbStrokeColor="@color/white"
+                        app:thumbStrokeWidth="1dp"
+                        app:trackColorActive="@color/accent"
+                        app:trackColorInactive="@color/neutral_gray" />
+
+                    <TextView
+                        android:id="@+id/tvMaxSlippage"
+                        android:layout_width="48dp"
+                        android:layout_height="wrap_content"
+                        android:text="2.0%"
+                        android:textColor="@color/filter_text_primary"
+                        android:textSize="14sp" />
+                </LinearLayout>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Execution Time Section -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardBackgroundColor="@color/filter_card_bg"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/filter_card_stroke"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Maximum Execution Time"
+                    android:textColor="@color/filter_text_primary"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginTop="12dp">
+
+                    <TextView
+                        android:id="@+id/tvMinExecutionTime"
+                        android:layout_width="48dp"
+                        android:layout_height="wrap_content"
+                        android:text="0s"
+                        android:textColor="@color/filter_text_primary"
+                        android:textSize="14sp" />
+
+                    <com.google.android.material.slider.RangeSlider
+                        android:id="@+id/sliderExecutionTime"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:valueFrom="0.0"
+                        android:valueTo="300.0"
+                        android:stepSize="5.0"
+                        app:thumbColor="@color/accent"
+                        app:thumbStrokeColor="@color/white"
+                        app:thumbStrokeWidth="1dp"
+                        app:trackColorActive="@color/accent"
+                        app:trackColorInactive="@color/neutral_gray" />
+
+                    <TextView
+                        android:id="@+id/tvMaxExecutionTime"
+                        android:layout_width="48dp"
+                        android:layout_height="wrap_content"
+                        android:text="5m"
+                        android:textColor="@color/filter_text_primary"
+                        android:textSize="14sp" />
+                </LinearLayout>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Common times:"
+                    android:textColor="@color/filter_text_secondary"
+                    android:textSize="14sp"
+                    android:layout_marginTop="12dp" />
+
+                <HorizontalScrollView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:scrollbars="none"
+                    android:layout_marginTop="8dp">
+
+                    <com.google.android.material.chip.ChipGroup
+                        android:id="@+id/chipGroupExecutionTimes"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        app:singleSelection="true"
+                        app:selectionRequired="false"
+                        app:singleLine="true">
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chipTime30s"
+                            style="@style/Widget.Tradient.FilterChip"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="&lt; 30s" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chipTime1m"
+                            style="@style/Widget.Tradient.FilterChip"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="&lt; 1m" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chipTime3m"
+                            style="@style/Widget.Tradient.FilterChip"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="&lt; 3m" />
+
+                        <com.google.android.material.chip.Chip
+                            android:id="@+id/chipTime5m"
+                            style="@style/Widget.Tradient.FilterChip"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="&lt; 5m" />
+                    </com.google.android.material.chip.ChipGroup>
+                </HorizontalScrollView>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Exchanges Section -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="16dp"
+            app:cardBackgroundColor="@color/filter_card_bg"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/filter_card_stroke"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <!-- Source Exchanges -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Source Exchanges"
+                    android:textColor="@color/filter_text_primary"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Select source exchanges to include"
+                    android:textColor="@color/filter_text_secondary"
+                    android:textSize="14sp"
+                    android:layout_marginTop="4dp" />
+
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/chipGroupSourceExchanges"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp">
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipSourceAny"
+                        style="@style/Widget.Tradient.FilterChip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Any Exchange"
+                        android:checked="true" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipSourceBinance"
+                        style="@style/Widget.Tradient.FilterChip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Binance" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipSourceCoinbase"
+                        style="@style/Widget.Tradient.FilterChip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Coinbase" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipSourceKraken"
+                        style="@style/Widget.Tradient.FilterChip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Kraken" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipSourceOKX"
+                        style="@style/Widget.Tradient.FilterChip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="OKX" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipSourceBybit"
+                        style="@style/Widget.Tradient.FilterChip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="ByBit" />
+                </com.google.android.material.chip.ChipGroup>
+
+                <!-- Destination Exchanges -->
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Destination Exchanges"
+                    android:textColor="@color/filter_text_primary"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:layout_marginTop="16dp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="Select destination exchanges to include"
+                    android:textColor="@color/filter_text_secondary"
+                    android:textSize="14sp"
+                    android:layout_marginTop="4dp" />
+
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/chipGroupDestExchanges"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp">
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipDestAny"
+                        style="@style/Widget.Tradient.FilterChip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Any Exchange"
+                        android:checked="true" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipDestBinance"
+                        style="@style/Widget.Tradient.FilterChip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Binance" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipDestCoinbase"
+                        style="@style/Widget.Tradient.FilterChip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Coinbase" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipDestKraken"
+                        style="@style/Widget.Tradient.FilterChip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Kraken" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipDestOKX"
+                        style="@style/Widget.Tradient.FilterChip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="OKX" />
+
+                    <com.google.android.material.chip.Chip
+                        android:id="@+id/chipDestBybit"
+                        style="@style/Widget.Tradient.FilterChip"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="ByBit" />
+                </com.google.android.material.chip.ChipGroup>
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- Action Buttons -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="end"
+            android:layout_marginTop="8dp">
+
+            <Button
+                android:id="@+id/btnResetFilters"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Reset"
+                android:textColor="@color/primary" />
+
+            <Button
+                android:id="@+id/btnApplyFilters"
+                style="@style/Widget.Material3.Button"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Apply Filters"
+                android:layout_marginStart="8dp"
+                android:backgroundTint="@color/primary"
+                android:textColor="@color/white" />
+        </LinearLayout>
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView> 
