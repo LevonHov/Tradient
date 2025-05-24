@@ -6,6 +6,6 @@
     </array>
     <array name="initial_profit_range">
         <item>0.0</item>
-        <item>100.0</item>
+        <item>50.0</item>
     </array>
 </resources> 

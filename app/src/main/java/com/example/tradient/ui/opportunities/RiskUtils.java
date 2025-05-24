@@ -351,18 +351,18 @@ public class RiskUtils {
      * Gets fee rate for a specific exchange
      */
     private static double getExchangeFee(String exchange) {
-        if (exchange == null) return 0.002; // Default 0.2%
+        if (exchange == null) return 0.001; // Default 0.1%
         
         switch (exchange.toLowerCase()) {
-            case "binance": return 0.001;  // 0.1%
-            case "coinbase": return 0.005; // 0.5%
-            case "kraken": return 0.0026;  // 0.26%
-            case "kucoin": return 0.001;   // 0.1%
-            case "bybit": return 0.001;    // 0.1%
-            case "okx": return 0.0008;     // 0.08%
-            case "gemini": return 0.0035;  // 0.35%
-            case "bitfinex": return 0.002; // 0.2%
-            default: return 0.002;         // Default 0.2%
+            case "binance": return 0.0004;  // 0.04% taker fee (spot)
+            case "coinbase": return 0.0060; // 0.60% taker fee
+            case "kraken": return 0.0026;   // 0.26% taker fee
+            case "kucoin": return 0.0010;   // 0.10% taker fee
+            case "bybit": return 0.0010;    // 0.10% taker fee
+            case "okx": return 0.0010;      // 0.10% taker fee (reduced from 0.20%)
+            case "gemini": return 0.0035;   // 0.35% taker fee
+            case "bitfinex": return 0.0020; // 0.20% taker fee
+            default: return 0.0010;         // Default 0.10%
         }
     }
 } 

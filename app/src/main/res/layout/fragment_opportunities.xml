@@ -187,6 +187,25 @@
         </com.google.android.material.chip.ChipGroup>
     </HorizontalScrollView>
 
+    <!-- Filter Summary ChipGroup -->
+    <HorizontalScrollView
+        android:id="@+id/filter_summary_scroll_view"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:scrollbars="none"
+        android:visibility="gone"
+        app:layout_constraintTop_toBottomOf="@id/filterChipsScrollView">
+
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/filter_chip_group_summary_placeholder"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:singleLine="true">
+            <!-- Chips will be added dynamically -->
+        </com.google.android.material.chip.ChipGroup>
+    </HorizontalScrollView>
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/opportunities_recycler_view"
         android:layout_width="0dp"
@@ -197,7 +216,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/filterChipsScrollView"
+        app:layout_constraintTop_toBottomOf="@id/filter_summary_scroll_view"
         tools:listitem="@layout/item_opportunity" />
 
     <TextView
@@ -211,7 +230,7 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/filterChipsScrollView"
+        app:layout_constraintTop_toBottomOf="@id/filter_summary_scroll_view"
         app:layout_constraintVertical_bias="0.3"
         tools:text="@string/scanning_for_opportunities"
         tools:visibility="visible" />

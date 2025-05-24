@@ -2,6 +2,7 @@ package com.example.tradient.ui.filter;
 
 import android.os.Parcel;
 import android.os.Parcelable;
+import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -30,6 +31,16 @@ public class FilterCriteria implements Parcelable {
     public FilterCriteria() {
         // Default values initialized in field declarations
         // Initialize default risk levels
+        Log.d("CRASH_PROBE", "FilterCriteria constructor - Initializing with defaults. " +
+            "sourceExchanges null? " + (sourceExchanges == null) + 
+            ", destinationExchanges null? " + (destinationExchanges == null) + 
+            ", riskLevel null? " + (riskLevel == null));
+            
+        if (sourceExchanges == null) sourceExchanges = new ArrayList<>();
+        if (destinationExchanges == null) destinationExchanges = new ArrayList<>();
+        if (riskLevels == null) riskLevels = new HashSet<>();
+        if (exchanges == null) exchanges = new HashSet<>();
+        
         if (riskLevel != null) {
             riskLevels.add(riskLevel);
         }

@@ -132,7 +132,7 @@
     <color name="text_input_box_stroke">#8B93B0</color>
     
     <!-- Chip states -->
-    <color name="chip_background_color">@color/chip_bg_unselected</color>
+    <color name="chip_background_color">#1F000000</color>
     <color name="chip_bg_selected">#3300C087</color>
     <color name="chip_bg_unselected">#252836</color>
     <color name="chip_stroke_selected">@color/accent</color>

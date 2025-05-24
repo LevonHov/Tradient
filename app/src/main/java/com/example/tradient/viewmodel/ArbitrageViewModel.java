@@ -587,81 +587,127 @@ public class ArbitrageViewModel extends ViewModel {
                 
                 // Check if price difference exceeds minimum profit threshold
                 if (profitPercent >= minProfitPercent) {
-                    // Get tickers for risk assessment
-                    Ticker buyTicker = isBuyOnCurrent ? currentTicker : otherTicker;
-                    Ticker sellTicker = isBuyOnCurrent ? otherTicker : currentTicker;
-                    
-                    // Create arbitrage opportunity
-                    ArbitrageOpportunity opportunity = new ArbitrageOpportunity(
-                        normalizedSymbol,
-                        exchangeSymbolMap.get(buyExchange).get(normalizedSymbol),
-                        exchangeSymbolMap.get(sellExchange).get(normalizedSymbol),
-                        buyExchange.getExchangeName(),
-                        sellExchange.getExchangeName(),
-                        buyPrice,
-                        sellPrice,
-                        profitPercent  // Pass the comprehensive profit percentage
-                    );
-                    
-                    // Set ticker data
-                    opportunity.setBuyTicker(buyTicker);
-                    opportunity.setSellTicker(sellTicker);
-                    
-                    // Store fee percentages for later calculation
-                    opportunity.setBuyFeePercentage(buyFee);
-                    opportunity.setSellFeePercentage(sellFee);
-                    
-                    // Set empty risk assessment
-                    RiskAssessmentAdapter.setRiskAssessment(opportunity, new RiskAssessment());
-                    
-                    // Set net profit after all fees (already calculated by comprehensive method)
-                    opportunity.setNetProfitPercentage(profitPercent);
-                    
-                    // Set viability based on net profit
-                    opportunity.setViable(profitPercent > minProfitPercent);
-                    
-                    // Get current opportunities
-                    List<ArbitrageOpportunity> currentOpportunities = arbitrageOpportunities.getValue();
-                    if (currentOpportunities == null) {
-                        currentOpportunities = new ArrayList<>();
-                    }
-                    
-                    // Check if we already have this opportunity
-                    boolean opportunityExists = false;
-                    int existingIndex = -1;
-                    
-                    for (int i = 0; i < currentOpportunities.size(); i++) {
-                        ArbitrageOpportunity existingOpp = currentOpportunities.get(i);
-                        if (existingOpp.getOpportunityKey().equals(opportunity.getOpportunityKey())) {
-                            opportunityExists = true;
-                            existingIndex = i;
-                            break;
+                    try {
+                        // Get tickers for risk assessment
+                        Ticker buyTicker = isBuyOnCurrent ? currentTicker : otherTicker;
+                        Ticker sellTicker = isBuyOnCurrent ? otherTicker : currentTicker;
+                        
+                        // Create arbitrage opportunity with validated data
+                        ArbitrageOpportunity opportunity = createOpportunity(
+                            normalizedSymbol,
+                            exchangeSymbolMap.get(buyExchange).get(normalizedSymbol),
+                            exchangeSymbolMap.get(sellExchange).get(normalizedSymbol),
+                            buyExchange.getExchangeName(),
+                            sellExchange.getExchangeName(),
+                            buyPrice,
+                            sellPrice,
+                            profitPercent
+                        );
+                        
+                        if (opportunity == null) {
+                            Log.e(TAG, "Failed to create opportunity object");
+                            continue;
                         }
+                        
+                        // Log opportunity before processing
+                        Log.i(TAG, String.format("Found arbitrage opportunity: %s - Buy on %s at %.8f, Sell on %s at %.8f, Comprehensive Profit: %.2f%%",
+                            normalizedSymbol,
+                            buyExchange.getExchangeName(),
+                            opportunity.getBuyPrice(),
+                            sellExchange.getExchangeName(),
+                            opportunity.getSellPrice(),
+                            profitPercent
+                        ));
+
+                        try {
+                            // Set ticker data with null checks
+                            if (buyTicker != null) {
+                                opportunity.setBuyTicker(buyTicker);
+                            } else {
+                                Log.w(TAG, "Buy ticker is null for " + normalizedSymbol);
+                            }
+                            
+                            if (sellTicker != null) {
+                                opportunity.setSellTicker(sellTicker);
+                            } else {
+                                Log.w(TAG, "Sell ticker is null for " + normalizedSymbol);
+                            }
+                            
+                            // Store fee percentages with validation
+                            if (buyFee >= 0 && buyFee <= 1) {
+                                opportunity.setBuyFeePercentage(buyFee);
+                            } else {
+                                Log.w(TAG, "Invalid buy fee percentage: " + buyFee);
+                                opportunity.setBuyFeePercentage(0.001); // Default to 0.1%
+                            }
+                            
+                            if (sellFee >= 0 && sellFee <= 1) {
+                                opportunity.setSellFeePercentage(sellFee);
+                            } else {
+                                Log.w(TAG, "Invalid sell fee percentage: " + sellFee);
+                                opportunity.setSellFeePercentage(0.001); // Default to 0.1%
+                            }
+                            
+                            // Set empty risk assessment with null check
+                            RiskAssessment riskAssessment = new RiskAssessment();
+                            RiskAssessmentAdapter.setRiskAssessment(opportunity, riskAssessment);
+                            
+                            // Validate profit percentage before setting
+                            if (!Double.isNaN(profitPercent) && !Double.isInfinite(profitPercent)) {
+                                opportunity.setNetProfitPercentage(profitPercent);
+                            } else {
+                                Log.e(TAG, "Invalid profit percentage: " + profitPercent);
+                                continue;
+                            }
+                            
+                            // Set viability based on validated profit
+                            opportunity.setViable(profitPercent > minProfitPercent);
+                            
+                            // Get current opportunities safely
+                            List<ArbitrageOpportunity> currentOpportunities = arbitrageOpportunities.getValue();
+                            if (currentOpportunities == null) {
+                                currentOpportunities = new ArrayList<>();
+                            }
+                            
+                            // Create a new list to avoid concurrent modification
+                            List<ArbitrageOpportunity> updatedOpportunities = new ArrayList<>(currentOpportunities);
+                            
+                            // Check if we already have this opportunity
+                            boolean opportunityExists = false;
+                            int existingIndex = -1;
+                            
+                            for (int i = 0; i < updatedOpportunities.size(); i++) {
+                                ArbitrageOpportunity existingOpp = updatedOpportunities.get(i);
+                                if (existingOpp != null && existingOpp.getOpportunityKey().equals(opportunity.getOpportunityKey())) {
+                                    opportunityExists = true;
+                                    existingIndex = i;
+                                    break;
+                                }
+                            }
+                            
+                            // Update existing or add new opportunity
+                            if (opportunityExists) {
+                                // Update the existing opportunity with new data
+                                updatedOpportunities.set(existingIndex, opportunity);
+                            } else {
+                                // Add new opportunity and increment counter
+                                updatedOpportunities.add(opportunity);
+                                opportunitiesFound.incrementAndGet();
+                                totalOpportunitiesFound.incrementAndGet();
+                            }
+                            
+                            // Post updated list back to UI
+                            arbitrageOpportunities.postValue(updatedOpportunities);
+                            
+                        } catch (Exception e) {
+                            Log.e(TAG, "Error processing opportunity after creation: " + e.getMessage(), e);
+                            // Don't rethrow - continue processing other opportunities
+                        }
+                        
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error creating or processing opportunity: " + e.getMessage(), e);
+                        // Don't rethrow - continue processing other opportunities
                     }
-                    
-                    // Update existing or add new opportunity
-                    if (opportunityExists) {
-                        // Update the existing opportunity with new data
-                        currentOpportunities.set(existingIndex, opportunity);
-                    } else {
-                        // Add new opportunity and increment counter
-                        currentOpportunities.add(opportunity);
-                        opportunitiesFound.incrementAndGet();
-                        totalOpportunitiesFound.incrementAndGet();
-                    }
-                    
-                    // Post updated list back to UI
-                    arbitrageOpportunities.postValue(currentOpportunities);
-                    
-                    // Log opportunity
-                    Log.i(TAG, String.format("Found arbitrage opportunity: %s - Buy on %s at %.8f, Sell on %s at %.8f, Comprehensive Profit: %.2f%%",
-                        normalizedSymbol,
-                        buyExchange.getExchangeName(),
-                        opportunity.getBuyPrice(),
-                        sellExchange.getExchangeName(),
-                        opportunity.getSellPrice(),
-                        profitPercent
-                    ));
                 }
             }
             

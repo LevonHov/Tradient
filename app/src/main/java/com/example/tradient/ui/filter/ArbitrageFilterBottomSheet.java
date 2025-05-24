@@ -14,6 +14,7 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+
 import com.example.tradient.R;
 import com.google.android.material.bottomsheet.BottomSheetBehavior;
 import com.google.android.material.bottomsheet.BottomSheetDialog;
@@ -42,18 +43,39 @@ public class ArbitrageFilterBottomSheet extends BottomSheetDialogFragment {
         // Default values
         private double minProfitPercentage = 0.0;
         private double maxProfitPercentage = 50.0;
-        private double maxSlippagePercentage = 2.0;
-        private double minExecutionTime = 0.0;
-        private double maxExecutionTime = 300.0; // 5 minutes in seconds
-        private String riskLevel = "Medium";
-        private List<String> sourceExchanges;
-        private List<String> destinationExchanges;
+        private double maxSlippagePercentage = 2.0; // Default 2.0% (effectively "Any" or a high threshold)
+        private double minExecutionTime = 0.0;    // Default 0 seconds
+        private double maxExecutionTime = 300.0;  // Default 300 seconds (5 minutes, effectively "Any")
+        private String riskLevel = RISK_LEVEL_ANY; // Default to "Any" risk
+        private List<String> sourceExchanges = new ArrayList<>();      // Empty list means "Any"
+        private List<String> destinationExchanges = new ArrayList<>(); // Empty list means "Any"
+
+        // Constants for Risk Levels (as expected by OpportunitiesFragment)
+        public static final String RISK_LEVEL_ANY = "Any";
+        public static final String RISK_LEVEL_LOW = "Low";
+        public static final String RISK_LEVEL_MEDIUM = "Medium";
+        public static final String RISK_LEVEL_HIGH = "High";
+        public static final String RISK_LEVEL_VERY_HIGH = "Very High";
+
+        // Constants for default execution times (as expected by OpportunitiesFragment)
+        public static final double DEFAULT_MIN_EXECUTION_TIME = 0.0;
+        public static final double DEFAULT_MAX_EXECUTION_TIME = 300.0; // 5 minutes
+
+        // Constants for default slippage (if needed, e.g. for hasActiveFilters)
+        public static final double DEFAULT_MAX_SLIPPAGE = 2.0; // 2.0%
+
+        // Constants for default profit percentages
+        public static final double DEFAULT_MIN_PROFIT_PERCENTAGE = 0.0;
+        public static final double DEFAULT_MAX_PROFIT_PERCENTAGE = 50.0;
 
         /**
          * Default constructor with default values
          */
         public FilterCriteria() {
             // Default values initialized in field declarations
+            // Ensure lists are initialized if not done in declaration
+            if (sourceExchanges == null) sourceExchanges = new ArrayList<>();
+            if (destinationExchanges == null) destinationExchanges = new ArrayList<>();
         }
 
         /**
@@ -87,7 +109,7 @@ public class ArbitrageFilterBottomSheet extends BottomSheetDialogFragment {
             dest.writeDouble(maxSlippagePercentage);
             dest.writeDouble(minExecutionTime);
             dest.writeDouble(maxExecutionTime);
-            dest.writeString(riskLevel);
+            dest.writeString(riskLevel != null ? riskLevel : RISK_LEVEL_ANY); // Write default if null
             
             // Write source exchanges (handle null case)
             dest.writeInt(sourceExchanges != null ? 1 : 0);
@@ -123,38 +145,70 @@ public class ArbitrageFilterBottomSheet extends BottomSheetDialogFragment {
          * Checks if any filters are active (non-default values)
          */
         public boolean hasActiveFilters() {
-            return minProfitPercentage > 0
-                    || maxProfitPercentage < 50.0
-                    || maxSlippagePercentage != 2.0
-                    || minExecutionTime > 0
-                    || maxExecutionTime < 300.0
+            // Check against more robust default constants
+            return minProfitPercentage > 0.0
+                    || maxProfitPercentage < 50.0 // Assuming 50.0 is a non-filtering max for profit range
+                    || maxSlippagePercentage < DEFAULT_MAX_SLIPPAGE 
+                    || minExecutionTime > DEFAULT_MIN_EXECUTION_TIME
+                    || maxExecutionTime < DEFAULT_MAX_EXECUTION_TIME
                     || (sourceExchanges != null && !sourceExchanges.isEmpty())
                     || (destinationExchanges != null && !destinationExchanges.isEmpty())
-                    || !"Medium".equals(riskLevel);
+                    || (riskLevel != null && !RISK_LEVEL_ANY.equals(riskLevel));
         }
 
         /**
          * Returns a short summary of active filters for display
+         * @param context Optional: for accessing string resources for i18n. Not used in this version.
          */
-        public String getFilterSummary() {
+        public String getFilterSummary(android.content.Context context) { // Added context for future i18n
             StringBuilder summary = new StringBuilder();
-            
-            if (minProfitPercentage > 0 || maxProfitPercentage < 50.0) {
-                summary.append(String.format("Profit: %.1f%%-%s", 
-                               minProfitPercentage, 
-                               maxProfitPercentage >= 50.0 ? "∞" : String.format("%.1f%%", maxProfitPercentage)));
+            NumberFormat percentInstance = NumberFormat.getPercentInstance(Locale.US);
+            percentInstance.setMaximumFractionDigits(1);
+
+            if (minProfitPercentage > 0.0 || maxProfitPercentage < 50.0) {
+                String maxProfitString = (maxProfitPercentage >= 50.0) ? "∞" : percentInstance.format(maxProfitPercentage / 100.0);
+                summary.append(String.format(Locale.US, "Profit: %s-%s", 
+                               percentInstance.format(minProfitPercentage / 100.0), 
+                               maxProfitString));
             }
             
-            if (riskLevel != null && !"Medium".equals(riskLevel)) {
+            if (riskLevel != null && !RISK_LEVEL_ANY.equals(riskLevel)) {
                 if (summary.length() > 0) summary.append(", ");
                 summary.append("Risk: ").append(riskLevel);
             }
+
+            if (maxSlippagePercentage < DEFAULT_MAX_SLIPPAGE) {
+                if (summary.length() > 0) summary.append(", ");
+                summary.append(String.format(Locale.US, "Slippage ≤ %s", percentInstance.format(maxSlippagePercentage / 100.0)));
+            }
             
-            if (summary.length() == 0) {
-                return "Filters active";
+            if (minExecutionTime > DEFAULT_MIN_EXECUTION_TIME || maxExecutionTime < DEFAULT_MAX_EXECUTION_TIME) {
+                if (summary.length() > 0) summary.append(", ");
+                summary.append(String.format(Locale.US, "Time: %.0fs-%.0fs", minExecutionTime, maxExecutionTime));
+            }
+
+            if (sourceExchanges != null && !sourceExchanges.isEmpty()) {
+                if (summary.length() > 0) summary.append(", ");
+                summary.append("From: ").append(String.join(",", sourceExchanges));
+            }
+            
+            if (destinationExchanges != null && !destinationExchanges.isEmpty()) {
+                if (summary.length() > 0) summary.append(", ");
+                summary.append("To: ").append(String.join(",", destinationExchanges));
+            }
+            
+            if (summary.length() == 0 && hasActiveFilters()) { // Should not happen if hasActiveFilters is true
+                return "Filters active"; // Generic message if specific filters don't form a summary string
+            } else if (summary.length() == 0 && !hasActiveFilters()) {
+                return ""; // No active filters, no summary
             }
             
             return summary.toString();
+        }
+
+        // GetFilterSummary without context for compatibility with OpportunitiesFragment call if needed temporarily
+        public String getFilterSummary() {
+            return getFilterSummary(null); // Call the main one with null context
         }
 
         @Override
@@ -273,6 +327,10 @@ public class ArbitrageFilterBottomSheet extends BottomSheetDialogFragment {
     // Add a class member variable to store the view
     private View rootView;
     
+    // Example: Assuming your "Any" chips have specific IDs
+    private Chip chipSourceExchangeAny; // TODO: Ensure this ID exists
+    private Chip chipDestExchangeAny;   // TODO: Ensure this ID exists
+    
     public ArbitrageFilterBottomSheet() {
         // Required empty constructor
         currentFilters = new FilterCriteria();
@@ -372,204 +430,217 @@ public class ArbitrageFilterBottomSheet extends BottomSheetDialogFragment {
         tvMaxExecutionTime = view.findViewById(R.id.tvMaxExecutionTime);
         chipGroupExecutionTimes = view.findViewById(R.id.chipGroupExecutionTimes);
         
-        // Exchanges
+        // Initialize source and destination exchange chip groups
         chipGroupSourceExchanges = view.findViewById(R.id.chipGroupSourceExchanges);
         chipGroupDestExchanges = view.findViewById(R.id.chipGroupDestExchanges);
         
-        // Buttons
+        // Initialize buttons
         btnApplyFilters = view.findViewById(R.id.btnApplyFilters);
         btnResetFilters = view.findViewById(R.id.btnResetFilters);
+        
+        // Initialize "Any" exchange chips
+        chipSourceExchangeAny = view.findViewById(R.id.chipSourceAny);
+        chipDestExchangeAny = view.findViewById(R.id.chipDestAny);
     }
     
     private void setupListeners() {
-        // Profit Range Slider listener
+        // Profit Range Slider
         sliderProfitRange.addOnChangeListener((slider, value, fromUser) -> {
             List<Float> values = slider.getValues();
-            float minProfit = values.get(0);
-            float maxProfit = values.get(1);
-            
-            // Update text labels with current values
-            tvMinProfit.setText(formatPercent(minProfit / 100));
-            
-            if (maxProfit >= slider.getValueTo()) {
-                tvMaxProfit.setText(formatPercent(maxProfit / 100) + "+");
-            } else {
-                tvMaxProfit.setText(formatPercent(maxProfit / 100));
-            }
-            
-            // Update current filters
-            currentFilters.setMinProfitPercentage(minProfit);
-            currentFilters.setMaxProfitPercentage(maxProfit);
-            
-            // Uncheck any preset chips
+            tvMinProfit.setText(formatPercent(values.get(0)));
+            tvMaxProfit.setText(values.get(1) >= 50.0f ? "50.0%+" : formatPercent(values.get(1)));
+            // Uncheck profit range chips if slider is manually changed
             uncheckAllChips(chipGroupProfitRanges);
         });
         
-        // Profit preset chip group listener
-        chipGroupProfitRanges.setOnCheckedStateChangeListener((group, checkedIds) -> {
-            if (!checkedIds.isEmpty()) {
-                Chip selectedChip = rootView.findViewById(checkedIds.get(0));
-                if (selectedChip != null) {
-                    setProfitRangeFromChip(selectedChip.getId());
-                }
+        // Profit Range Chip Group
+        chipGroupProfitRanges.setOnCheckedChangeListener((group, checkedId) -> {
+            if (checkedId != View.NO_ID) {
+                setProfitRangeFromChip(checkedId);
             }
         });
-        
-        // Slippage Slider listener
+
+        // Slippage Slider
         sliderSlippage.addOnChangeListener((slider, value, fromUser) -> {
-            float slippage = value;
-            tvMaxSlippage.setText(formatPercent(slippage / 100));
-            currentFilters.setMaxSlippagePercentage(slippage);
+            tvMaxSlippage.setText(formatPercent(value));
         });
-        
-        // Execution Time Range Slider listener
+
+        // Risk Level Chip Group
+        chipGroupRiskLevel.setOnCheckedChangeListener((group, checkedId) -> {
+            // Logic to ensure only one chip is selected is usually handled by app:singleSelection="true"
+            // If direct update to currentFilters is needed here, it can be done.
+            // For now, we'll read it on "Apply".
+        });
+
+        // Execution Time Slider
         sliderExecutionTime.addOnChangeListener((slider, value, fromUser) -> {
             List<Float> values = slider.getValues();
-            float minTime = values.get(0);
-            float maxTime = values.get(1);
-            
-            // Update text labels with current values
-            tvMinExecutionTime.setText(formatTime(minTime));
-            tvMaxExecutionTime.setText(formatTime(maxTime));
-            
-            // Update current filters
-            currentFilters.setMinExecutionTime(minTime);
-            currentFilters.setMaxExecutionTime(maxTime);
-            
-            // Uncheck any preset chips
+            tvMinExecutionTime.setText(formatTime(values.get(0)));
+            tvMaxExecutionTime.setText(formatTime(values.get(1)));
+            // Uncheck execution time chips if slider is manually changed
             uncheckAllChips(chipGroupExecutionTimes);
         });
         
-        // Execution time preset chip group listener
-        chipGroupExecutionTimes.setOnCheckedStateChangeListener((group, checkedIds) -> {
-            if (!checkedIds.isEmpty()) {
-                Chip selectedChip = rootView.findViewById(checkedIds.get(0));
-                if (selectedChip != null) {
-                    setExecutionTimeFromChip(selectedChip.getId());
+        // Execution Time Chip Group
+        chipGroupExecutionTimes.setOnCheckedChangeListener((group, checkedId) -> {
+            if (checkedId != View.NO_ID) {
+                setExecutionTimeFromChip(checkedId);
+            }
+        });
+
+        // Source Exchanges Chip Group
+        if (chipGroupSourceExchanges != null) {
+            chipGroupSourceExchanges.setOnCheckedChangeListener((group, checkedId) -> {
+                handleExchangeChipChange(group, checkedId, R.id.chipSourceAny, true);
+            });
+        }
+
+        // Destination Exchanges Chip Group
+        if (chipGroupDestExchanges != null) {
+            chipGroupDestExchanges.setOnCheckedChangeListener((group, checkedId) -> {
+                handleExchangeChipChange(group, checkedId, R.id.chipDestAny, false);
+            });
+        }
+
+        // Apply Filters Button
+        if (btnApplyFilters != null) {
+            btnApplyFilters.setOnClickListener(v -> {
+                // Collect all filter values from UI elements into currentFilters
+                currentFilters.setMinProfitPercentage(sliderProfitRange.getValues().get(0));
+                currentFilters.setMaxProfitPercentage(sliderProfitRange.getValues().get(1));
+                currentFilters.setMaxSlippagePercentage(sliderSlippage.getValue());
+                currentFilters.setMinExecutionTime(sliderExecutionTime.getValues().get(0));
+                currentFilters.setMaxExecutionTime(sliderExecutionTime.getValues().get(1));
+                currentFilters.setRiskLevel(getSelectedRiskLevel(chipGroupRiskLevel));
+                
+                // Get selected exchanges, handling the "Any" case internally in getSelectedExchangesList
+                currentFilters.setSourceExchanges(getSelectedExchangesList(chipGroupSourceExchanges, R.id.chipSourceAny));
+                currentFilters.setDestinationExchanges(getSelectedExchangesList(chipGroupDestExchanges, R.id.chipDestAny));
+
+                if (filterListener != null) {
+                    filterListener.onFiltersApplied(currentFilters);
                 }
-            }
-        });
-        
-        // Risk Level chip group listener
-        chipGroupRiskLevel.setOnCheckedStateChangeListener((group, checkedIds) -> {
-            if (!checkedIds.isEmpty()) {
-                Chip selectedChip = rootView.findViewById(checkedIds.get(0));
-                if (selectedChip != null) {
-                    currentFilters.setRiskLevel(selectedChip.getText().toString());
-                }
-            }
-        });
-        
-        // Source Exchange chip group listener
-        chipGroupSourceExchanges.setOnCheckedStateChangeListener((group, checkedIds) -> {
-            handleExchangeSelection(checkedIds, true);
-        });
-        
-        // Destination Exchange chip group listener
-        chipGroupDestExchanges.setOnCheckedStateChangeListener((group, checkedIds) -> {
-            handleExchangeSelection(checkedIds, false);
-        });
-        
-        // Apply button listener
-        btnApplyFilters.setOnClickListener(v -> {
-            if (filterListener != null) {
-                filterListener.onFiltersApplied(currentFilters);
-            }
-            dismiss();
-        });
-        
-        // Reset button listener
-        btnResetFilters.setOnClickListener(v -> {
-            resetFilters();
-        });
-    }
-    
-    private void handleExchangeSelection(List<Integer> checkedIds, boolean isSource) {
-        Set<String> selectedExchanges = new HashSet<>();
-        boolean hasAny = false;
-        
-        for (int id : checkedIds) {
-            Chip chip = rootView.findViewById(id);
-            if (chip != null) {
-                String exchange = chip.getText().toString();
-                if (EXCHANGE_ANY.equals(exchange)) {
-                    hasAny = true;
-                    // When "Any Exchange" is selected, disable other chips
-                    setOtherExchangeChipsEnabled(!hasAny, isSource);
-                    break;
-                } else {
-                    selectedExchanges.add(exchange);
-                }
-            }
+                dismiss();
+            });
         }
         
-        if (isSource) {
-            // For source exchanges
-            if (hasAny) {
-                currentFilters.setSourceExchanges(null); // null means any
-            } else {
-                currentFilters.setSourceExchanges(new ArrayList<>(selectedExchanges));
-            }
-            
-            // If no exchanges selected, reselect "Any"
-            if (checkedIds.isEmpty()) {
-                selectAnyExchange(true);
-            }
-        } else {
-            // For destination exchanges
-            if (hasAny) {
-                currentFilters.setDestinationExchanges(null); // null means any
-            } else {
-                currentFilters.setDestinationExchanges(new ArrayList<>(selectedExchanges));
-            }
-            
-            // If no exchanges selected, reselect "Any"
-            if (checkedIds.isEmpty()) {
-                selectAnyExchange(false);
-            }
+        // Reset Filters Button
+        if (btnResetFilters != null) {
+            btnResetFilters.setOnClickListener(v -> resetFilters());
         }
     }
     
-    private void setOtherExchangeChipsEnabled(boolean enabled, boolean isSource) {
-        ChipGroup group = isSource ? chipGroupSourceExchanges : chipGroupDestExchanges;
+    // Consolidated handler for exchange chip group changes
+    private void handleExchangeChipChange(ChipGroup group, int checkedId, int anyChipId, boolean isSourceGroup) {
+        if (checkedId == View.NO_ID) { // All chips in the group are unchecked
+             // If nothing is selected, default to "Any"
+            Chip anyChip = group.findViewById(anyChipId);
+            if (anyChip != null && !anyChip.isChecked()) {
+                anyChip.setChecked(true); // This will re-trigger the listener, be careful of loops
+            }
+            setOtherExchangeChipsEnabled(group, anyChipId, false); // Disable specific exchanges if "Any" is forced selected
+            return;
+        }
+
+        if (checkedId == anyChipId) { // "Any Exchange" chip is selected
+            // Uncheck all other chips in this group
+            for (int i = 0; i < group.getChildCount(); i++) {
+                Chip chip = (Chip) group.getChildAt(i);
+                if (chip.getId() != anyChipId && chip.isChecked()) {
+                    chip.setChecked(false); // This might re-trigger listener, use with caution or add flags
+                }
+            }
+            setOtherExchangeChipsEnabled(group, anyChipId, false);
+            // Update currentFilters for the respective group
+            if (isSourceGroup) {
+                currentFilters.setSourceExchanges(new ArrayList<>()); // Empty list signifies "Any"
+            } else {
+                currentFilters.setDestinationExchanges(new ArrayList<>()); // Empty list signifies "Any"
+            }
+        } else { // A specific exchange chip is selected
+            // Uncheck the "Any Exchange" chip in this group
+            Chip anyChip = group.findViewById(anyChipId);
+            if (anyChip != null && anyChip.isChecked()) {
+                anyChip.setChecked(false);
+            }
+            setOtherExchangeChipsEnabled(group, anyChipId, true);
+            // Collect selected specific exchanges and update currentFilters
+            // This part is handled by getSelectedExchangesList when Apply is clicked
+        }
+    }
+
+    /**
+     * Enables or disables all chips in a ChipGroup except for the "Any Exchange" chip.
+     * @param group The ChipGroup containing the exchange chips.
+     * @param anyChipId The ID of the "Any Exchange" chip within the group.
+     * @param enabled True to enable specific exchange chips, false to disable them.
+     */
+    private void setOtherExchangeChipsEnabled(ChipGroup group, int anyChipId, boolean enabled) {
+        if (group == null) return;
         for (int i = 0; i < group.getChildCount(); i++) {
-            View child = group.getChildAt(i);
-            if (child instanceof Chip) {
-                Chip chip = (Chip) child;
-                if (!EXCHANGE_ANY.equals(chip.getText().toString())) {
-                    chip.setEnabled(enabled);
-                    if (!enabled) {
-                        chip.setChecked(false);
-                    }
-                }
+            View view = group.getChildAt(i);
+            if (view instanceof Chip && view.getId() != anyChipId) {
+                view.setEnabled(enabled);
+                // Optionally change alpha to indicate disabled state visually
+                // view.setAlpha(enabled ? 1.0f : 0.5f);
             }
         }
     }
-    
-    private void selectAnyExchange(boolean isSource) {
-        if (isSource) {
-            for (int i = 0; i < chipGroupSourceExchanges.getChildCount(); i++) {
-                View child = chipGroupSourceExchanges.getChildAt(i);
-                if (child instanceof Chip) {
-                    Chip chip = (Chip) child;
-                    if (EXCHANGE_ANY.equals(chip.getText().toString())) {
-                        chip.setChecked(true);
-                        break;
-                    }
-                }
+
+    /**
+     * Selects the "Any Exchange" chip and deselects/disables others.
+     * @param group The ChipGroup (source or destination).
+     * @param anyChipId The resource ID of the "Any Exchange" chip in this group.
+     * @param isSelectingAny True if "Any" is being selected, false if a specific exchange is being selected (to enable others).
+     */
+    private void selectAnyExchangeIfNeeded(ChipGroup group, int anyChipId, boolean isSelectingAny) {
+        if (group == null) return;
+        Chip anyChip = group.findViewById(anyChipId);
+        if (anyChip == null) return;
+
+        if (isSelectingAny) {
+            if (!anyChip.isChecked()) {
+                anyChip.setChecked(true); // This will trigger onCheckedChangeListener
+            } else {
+                // If "Any" is already checked, ensure others are disabled
+                setOtherExchangeChipsEnabled(group, anyChipId, false);
             }
         } else {
-            for (int i = 0; i < chipGroupDestExchanges.getChildCount(); i++) {
-                View child = chipGroupDestExchanges.getChildAt(i);
-                if (child instanceof Chip) {
-                    Chip chip = (Chip) child;
-                    if (EXCHANGE_ANY.equals(chip.getText().toString())) {
-                        chip.setChecked(true);
-                        break;
-                    }
-                }
+            // If a specific exchange is selected, "Any" should be unchecked and others enabled
+            if (anyChip.isChecked()) {
+                anyChip.setChecked(false); // This will trigger onCheckedChangeListener
+            }
+            setOtherExchangeChipsEnabled(group, anyChipId, true);
+        }
+    }
+
+    private String getSelectedRiskLevel(ChipGroup chipGroup) {
+        int checkedChipId = chipGroup.getCheckedChipId();
+        if (checkedChipId != View.NO_ID) {
+            Chip selectedChip = chipGroup.findViewById(checkedChipId);
+            if (selectedChip != null) {
+                return selectedChip.getText().toString();
             }
         }
+        return RISK_MEDIUM; // Default if somehow no chip is selected (though selectionRequired is true)
+    }
+
+    private List<String> getSelectedExchangesList(ChipGroup chipGroup, int anyChipId) {
+        List<String> selectedExchanges = new ArrayList<>();
+        if (chipGroup == null) return selectedExchanges; // Return empty if group is null
+
+        Chip selectedChip = chipGroup.findViewById(chipGroup.getCheckedChipId());
+        if (selectedChip != null && selectedChip.getId() == anyChipId) {
+            return selectedExchanges; // "Any" is selected, so return empty list for FilterCriteria convention
+        }
+
+        for (int i = 0; i < chipGroup.getChildCount(); i++) {
+            Chip chip = (Chip) chipGroup.getChildAt(i);
+            if (chip.isChecked() && chip.getId() != anyChipId) {
+                selectedExchanges.add(chip.getText().toString());
+            }
+        }
+        return selectedExchanges;
     }
     
     private void setProfitRangeFromChip(int chipId) {
@@ -601,124 +672,123 @@ public class ArbitrageFilterBottomSheet extends BottomSheetDialogFragment {
     }
     
     private void initializeWithCurrentFilters() {
-        // Set profit range
-        sliderProfitRange.setValues(
-                (float) currentFilters.getMinProfitPercentage(),
-                (float) currentFilters.getMaxProfitPercentage()
-        );
+        if (currentFilters == null) {
+            currentFilters = new FilterCriteria(); // Should not happen if newInstance is used
+        }
+
+        // Profit
+        sliderProfitRange.setValues((float)currentFilters.getMinProfitPercentage(), (float)currentFilters.getMaxProfitPercentage());
+        tvMinProfit.setText(formatPercent((float)currentFilters.getMinProfitPercentage()));
+        tvMaxProfit.setText(currentFilters.getMaxProfitPercentage() >= 50.0f ? "50.0%+" : formatPercent((float)currentFilters.getMaxProfitPercentage()));
+        // Deselect profit chips initially, slider takes precedence. Or, try to match a chip.
+        uncheckAllChips(chipGroupProfitRanges);
+
+
+        // Risk Level
+        String risk = currentFilters.getRiskLevel();
+        Chip riskChipToSelect = null;
+        if (RISK_LOW.equalsIgnoreCase(risk)) riskChipToSelect = rootView.findViewById(R.id.chipRiskLow);
+        else if (RISK_HIGH.equalsIgnoreCase(risk)) riskChipToSelect = rootView.findViewById(R.id.chipRiskHigh);
+        else if (RISK_VERY_HIGH.equalsIgnoreCase(risk)) riskChipToSelect = rootView.findViewById(R.id.chipRiskVeryHigh);
+        else riskChipToSelect = rootView.findViewById(R.id.chipRiskMedium); // Default to medium
         
-        // Set risk level
-        String riskLevel = currentFilters.getRiskLevel();
-        if (riskLevel != null) {
-            for (int i = 0; i < chipGroupRiskLevel.getChildCount(); i++) {
-                View child = chipGroupRiskLevel.getChildAt(i);
-                if (child instanceof Chip) {
-                    Chip chip = (Chip) child;
-                    if (riskLevel.equals(chip.getText().toString())) {
-                        chip.setChecked(true);
+        if (riskChipToSelect != null) {
+            riskChipToSelect.setChecked(true);
+        } else {
+             Chip mediumChip = rootView.findViewById(R.id.chipRiskMedium); // Fallback
+             if(mediumChip != null) mediumChip.setChecked(true);
+        }
+
+
+        // Slippage
+        sliderSlippage.setValue((float)currentFilters.getMaxSlippagePercentage());
+        tvMaxSlippage.setText(formatPercent((float)currentFilters.getMaxSlippagePercentage()));
+
+        // Execution Time
+        sliderExecutionTime.setValues((float)currentFilters.getMinExecutionTime(), (float)currentFilters.getMaxExecutionTime());
+        tvMinExecutionTime.setText(formatTime((float)currentFilters.getMinExecutionTime()));
+        tvMaxExecutionTime.setText(formatTime((float)currentFilters.getMaxExecutionTime()));
+        // Deselect time chips initially. Or, try to match a chip.
+        uncheckAllChips(chipGroupExecutionTimes);
+
+
+        // Source Exchanges
+        updateExchangeChipGroupSelection(chipGroupSourceExchanges, currentFilters.getSourceExchanges(), R.id.chipSourceAny);
+
+        // Destination Exchanges
+        updateExchangeChipGroupSelection(chipGroupDestExchanges, currentFilters.getDestinationExchanges(), R.id.chipDestAny);
+    }
+    
+    private void updateExchangeChipGroupSelection(ChipGroup group, List<String> selectedNames, int anyChipId) {
+        uncheckAllChips(group); // Start fresh
+        Chip anyChip = group.findViewById(anyChipId);
+
+        if (selectedNames == null || selectedNames.isEmpty()) {
+            if (anyChip != null) anyChip.setChecked(true);
+            return;
+        }
+        
+        boolean specificSelected = false;
+        for (String name : selectedNames) {
+            for (int i = 0; i < group.getChildCount(); i++) {
+                Chip chip = (Chip) group.getChildAt(i);
+                if (name.equalsIgnoreCase(chip.getText().toString())) {
+                    chip.setChecked(true);
+                    specificSelected = true;
                         break;
-                    }
                 }
             }
         }
-        
-        // Set slippage
-        sliderSlippage.setValue((float) currentFilters.getMaxSlippagePercentage());
-        
-        // Set execution time
-        sliderExecutionTime.setValues(
-                (float) currentFilters.getMinExecutionTime(),
-                (float) currentFilters.getMaxExecutionTime()
-        );
-        
-        // Set source exchanges
-        List<String> sourceExchanges = currentFilters.getSourceExchanges();
-        if (sourceExchanges == null || sourceExchanges.isEmpty()) {
-            // If null or empty, select "Any Exchange"
-            selectAnyExchange(true);
-        } else {
-            // Deselect "Any Exchange" first
-            for (int i = 0; i < chipGroupSourceExchanges.getChildCount(); i++) {
-                View child = chipGroupSourceExchanges.getChildAt(i);
-                if (child instanceof Chip) {
-                    Chip chip = (Chip) child;
-                    if (EXCHANGE_ANY.equals(chip.getText().toString())) {
-                        chip.setChecked(false);
-                        break;
-                    }
-                }
-            }
-            
-            // Select specific exchanges
-            for (int i = 0; i < chipGroupSourceExchanges.getChildCount(); i++) {
-                View child = chipGroupSourceExchanges.getChildAt(i);
-                if (child instanceof Chip) {
-                    Chip chip = (Chip) child;
-                    if (sourceExchanges.contains(chip.getText().toString())) {
-                        chip.setChecked(true);
-                    }
-                }
-            }
-        }
-        
-        // Set destination exchanges
-        List<String> destExchanges = currentFilters.getDestinationExchanges();
-        if (destExchanges == null || destExchanges.isEmpty()) {
-            // If null or empty, select "Any Exchange"
-            selectAnyExchange(false);
-        } else {
-            // Deselect "Any Exchange" first
-            for (int i = 0; i < chipGroupDestExchanges.getChildCount(); i++) {
-                View child = chipGroupDestExchanges.getChildAt(i);
-                if (child instanceof Chip) {
-                    Chip chip = (Chip) child;
-                    if (EXCHANGE_ANY.equals(chip.getText().toString())) {
-                        chip.setChecked(false);
-                        break;
-                    }
-                }
-            }
-            
-            // Select specific exchanges
-            for (int i = 0; i < chipGroupDestExchanges.getChildCount(); i++) {
-                View child = chipGroupDestExchanges.getChildAt(i);
-                if (child instanceof Chip) {
-                    Chip chip = (Chip) child;
-                    if (destExchanges.contains(chip.getText().toString())) {
-                        chip.setChecked(true);
-                    }
-                }
-            }
+        // If no specific chips were matched and "Any" chip exists, check it.
+        // Or, if anyChipId should be unchecked if specifics are selected.
+        if (anyChip != null) {
+            anyChip.setChecked(!specificSelected);
         }
     }
     
     private void resetFilters() {
-        // Reset all filters to defaults
-        currentFilters = new FilterCriteria();
-        
-        // Reset UI components
-        sliderProfitRange.setValues(0f, 50f);
-        sliderSlippage.setValue(2.0f);
-        sliderExecutionTime.setValues(0f, 300f);
-        
-        // Reset chip groups
+        // Reset sliders to default values
+        sliderProfitRange.setValues((float) FilterCriteria.DEFAULT_MIN_PROFIT_PERCENTAGE, (float) FilterCriteria.DEFAULT_MAX_PROFIT_PERCENTAGE);
+        sliderSlippage.setValue((float) FilterCriteria.DEFAULT_MAX_SLIPPAGE);
+        sliderExecutionTime.setValues((float) FilterCriteria.DEFAULT_MIN_EXECUTION_TIME, (float) FilterCriteria.DEFAULT_MAX_EXECUTION_TIME);
+
+        // Reset Risk Level to "Any" (or your default)
+        // TODO: Ensure R.id.chip_risk_any exists and is the ID of your "Any" risk chip
+
+        // Reset Exchange ChipGroups to "Any Exchange"
+        // TODO: Ensure chipSourceExchangeAny and chipDestExchangeAny are valid references to your "Any" chips in the layout
+        selectAnyExchangeIfNeeded(chipGroupSourceExchanges, chipSourceExchangeAny != null ? chipSourceExchangeAny.getId() : View.NO_ID, true);
+        selectAnyExchangeIfNeeded(chipGroupDestExchanges, chipDestExchangeAny != null ? chipDestExchangeAny.getId() : View.NO_ID, true);
+
+        // Reset quick select chip groups (profit ranges, execution times)
         uncheckAllChips(chipGroupProfitRanges);
         uncheckAllChips(chipGroupExecutionTimes);
         
-        // Reset risk level to Medium
-        for (int i = 0; i < chipGroupRiskLevel.getChildCount(); i++) {
-            View child = chipGroupRiskLevel.getChildAt(i);
-            if (child instanceof Chip) {
-                Chip chip = (Chip) child;
-                chip.setChecked(RISK_MEDIUM.equals(chip.getText().toString()));
-            }
+        // Update UI text views
+        updateSliderTextViews();
+
+        // Create a new default FilterCriteria object
+        currentFilters = new FilterCriteria();
+        // Optionally, notify listener if immediate reset application is desired without clicking "Apply"
+        // if (filterListener != null) {
+        // filterListener.onFiltersApplied(currentFilters);
+        // }
+    }
+    
+    private void updateSliderTextViews() {
+        if (tvMinProfit != null && tvMaxProfit != null && sliderProfitRange != null) {
+            List<Float> profitValues = sliderProfitRange.getValues();
+            tvMinProfit.setText(formatPercent(profitValues.get(0)));
+            tvMaxProfit.setText(profitValues.get(1) >= 50.0f ? "50.0%+" : formatPercent(profitValues.get(1)));
         }
-        
-        // Reset exchanges to "Any"
-        selectAnyExchange(true);
-        selectAnyExchange(false);
-        setOtherExchangeChipsEnabled(false, true);
-        setOtherExchangeChipsEnabled(false, false);
+        if (tvMaxSlippage != null && sliderSlippage != null) { // Assuming only max slippage shown, or adjust if min also present
+            tvMaxSlippage.setText(formatPercent(sliderSlippage.getValue()));
+        }
+        if (tvMinExecutionTime != null && tvMaxExecutionTime != null && sliderExecutionTime != null) {
+            List<Float> timeValues = sliderExecutionTime.getValues();
+            tvMinExecutionTime.setText(formatTime(timeValues.get(0)));
+            tvMaxExecutionTime.setText(formatTime(timeValues.get(1)));
+        }
     }
     
     /**

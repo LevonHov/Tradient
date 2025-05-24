@@ -45,25 +45,37 @@ public class ExchangeFeeFactory {
      * Initialize the default fee structures for all supported exchanges.
      */
     private void initializeDefaultFees() {
-        // Binance fees (VIP0: 0.1% maker, 0.1% taker)
-        defaultMakerFees.put("Binance", new PercentageFee(0.001, true, "Binance maker fee"));
-        defaultTakerFees.put("Binance", new PercentageFee(0.001, false, "Binance taker fee"));
+        // Binance fees (VIP0: 0.02% maker, 0.04% taker spot)
+        defaultMakerFees.put("Binance", new PercentageFee(0.0002, true, "Binance maker fee"));
+        defaultTakerFees.put("Binance", new PercentageFee(0.0004, false, "Binance taker fee"));
         
-        // Coinbase fees (VIP0: 0.6% maker, 0.6% taker)
-        defaultMakerFees.put("Coinbase", new PercentageFee(0.006, true, "Coinbase maker fee"));
-        defaultTakerFees.put("Coinbase", new PercentageFee(0.006, false, "Coinbase taker fee"));
+        // Coinbase fees (VIP0: 0.40% maker, 0.60% taker)
+        defaultMakerFees.put("Coinbase", new PercentageFee(0.0040, true, "Coinbase maker fee"));
+        defaultTakerFees.put("Coinbase", new PercentageFee(0.0060, false, "Coinbase taker fee"));
         
-        // Kraken fees (VIP0: 0.2% maker, 0.2% taker for most pairs)
-        defaultMakerFees.put("Kraken", new PercentageFee(0.002, true, "Kraken maker fee"));
-        defaultTakerFees.put("Kraken", new PercentageFee(0.002, false, "Kraken taker fee"));
+        // Kraken fees (VIP0: 0.16% maker, 0.26% taker for most pairs)
+        defaultMakerFees.put("Kraken", new PercentageFee(0.0016, true, "Kraken maker fee"));
+        defaultTakerFees.put("Kraken", new PercentageFee(0.0026, false, "Kraken taker fee"));
         
-        // Bybit fees (VIP0: 0.1% maker, 0.1% taker for spot trading)
-        defaultMakerFees.put("Bybit", new PercentageFee(0.001, true, "Bybit maker fee"));
-        defaultTakerFees.put("Bybit", new PercentageFee(0.001, false, "Bybit taker fee"));
+        // Bybit fees (VIP0: 0.01% maker, 0.10% taker for spot trading)
+        defaultMakerFees.put("Bybit", new PercentageFee(0.0001, true, "Bybit maker fee"));
+        defaultTakerFees.put("Bybit", new PercentageFee(0.0010, false, "Bybit taker fee"));
         
-        // OKX fees (VIP0: 0.1% maker, 0.1% taker)
-        defaultMakerFees.put("OKX", new PercentageFee(0.001, true, "OKX maker fee"));
-        defaultTakerFees.put("OKX", new PercentageFee(0.001, false, "OKX taker fee"));
+        // OKX fees (VIP0: 0.08% maker, 0.10% taker)
+        defaultMakerFees.put("OKX", new PercentageFee(0.0008, true, "OKX maker fee"));
+        defaultTakerFees.put("OKX", new PercentageFee(0.0010, false, "OKX taker fee"));
+        
+        // KuCoin fees (VIP0: 0.08% maker, 0.10% taker)
+        defaultMakerFees.put("KuCoin", new PercentageFee(0.0008, true, "KuCoin maker fee"));
+        defaultTakerFees.put("KuCoin", new PercentageFee(0.0010, false, "KuCoin taker fee"));
+
+        // Gemini fees (VIP0: 0.25% maker, 0.35% taker)
+        defaultMakerFees.put("Gemini", new PercentageFee(0.0025, true, "Gemini maker fee"));
+        defaultTakerFees.put("Gemini", new PercentageFee(0.0035, false, "Gemini taker fee"));
+
+        // Bitfinex fees (VIP0: 0.10% maker, 0.20% taker)
+        defaultMakerFees.put("Bitfinex", new PercentageFee(0.0010, true, "Bitfinex maker fee"));
+        defaultTakerFees.put("Bitfinex", new PercentageFee(0.0020, false, "Bitfinex taker fee"));
     }
     
     /**

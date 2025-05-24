@@ -93,17 +93,31 @@ public class OpportunitiesFragment extends Fragment implements FilterBottomSheet
     
     // Filter state
     private String currentSearchQuery = "";
-    private String currentChipFilter = "";
-    private float minProfitPercent = 0f;
-    private float maxProfitPercent = 50f;
-    private Set<String> selectedExchanges = new HashSet<>();
-    private float maxRiskLevel = 5f;
-    private int maxExecutionTimeMinutes = -1; // -1 means any time
-    private float minVolume = 1f;
-    private boolean isFilterPanelVisible = false;
+    private String currentChipFilter = ""; // For the topmost quick symbol filter chips
 
-    private FloatingActionButton filterFab;
-    private ArbitrageFilterBottomSheet.FilterCriteria currentFilter;
+    // --- BEGIN State for Inline Advanced Filter Panel ---
+    // These are for the UI elements directly in fragment_opportunities.xml's advanced panel.
+    // If this panel is secondary or a way to pre-fill the BottomSheet, their primary role isn't direct filtering anymore.
+    private float inlineMinProfitPercent = 0f;
+    private float inlineMaxProfitPercent = 50f;
+    private Set<String> inlineSelectedExchanges = new HashSet<>();
+    private float inlineMaxRiskLevelSliderValue = 5f; // Value from the inline risk slider (1-10)
+    private int inlineMaxExecutionTimeMinutes = -1;
+    private float inlineMinVolume = 1f;
+    private boolean isInlineFilterPanelVisible = false;
+    // --- END State for Inline Advanced Filter Panel ---
+
+    private FloatingActionButton filterFab; // FAB to open the BottomSheet
+    // This currentAppliedFilterCriteria is the single source of truth for applied advanced filters from the BottomSheet.
+    private ArbitrageFilterBottomSheet.FilterCriteria currentAppliedFilterCriteria;
+
+    // Define Risk Level constants to match BottomSheet for clarity in mapping
+    private static final String RISK_LOW = "Low";
+    private static final String RISK_MEDIUM = "Medium";
+    private static final String RISK_HIGH = "High";
+    private static final String RISK_VERY_HIGH = "Very High";
+    // Default risk level string from FilterCriteria if no explicit selection or for "any"
+    private static final String DEFAULT_RISK_LEVEL_FROM_CRITERIA = "Medium"; // Matches FilterCriteria's default
 
     @Nullable
     @Override
@@ -115,96 +129,293 @@ public class OpportunitiesFragment extends Fragment implements FilterBottomSheet
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        // Initialize views
-        opportunitiesRecyclerView = view.findViewById(R.id.opportunities_recycler_view);
-        emptyStateText = view.findViewById(R.id.empty_state_text);
-        
-        // Initialize search views
-        searchEditText = view.findViewById(R.id.searchEditText);
-        clearButton = view.findViewById(R.id.clearButton);
-        filterButton = view.findViewById(R.id.filterButton);
-        filterChipGroup = view.findViewById(R.id.filterChipGroup);
-        filterChipsScrollView = view.findViewById(R.id.filterChipsScrollView);
-        
-        // Initialize advanced filter views
-        advancedFilterFab = view.findViewById(R.id.advancedFilterFab);
-        filterPanel = view.findViewById(R.id.filterPanel);
-        profitRangeSlider = view.findViewById(R.id.profitRangeSlider);
-        profitMinValue = view.findViewById(R.id.profitMinValue);
-        profitMaxValue = view.findViewById(R.id.profitMaxValue);
-        exchangeChipGroup = view.findViewById(R.id.exchangeChipGroup);
-        riskLevelSlider = view.findViewById(R.id.riskLevelSlider);
-        executionTimeSpinner = view.findViewById(R.id.executionTimeSpinner);
-        volumeSlider = view.findViewById(R.id.volumeSlider);
-        resetFiltersButton = view.findViewById(R.id.resetFiltersButton);
-        applyFiltersButton = view.findViewById(R.id.applyFiltersButton);
-        matchingOpportunitiesText = view.findViewById(R.id.matchingOpportunitiesText);
+        initializeBaseViews(view);
+        initializeInlineAdvancedFilterViews(view); // Initializes UI elements of the inline panel
 
-        // Set up RecyclerView
+        // Initialize with a default (empty/non-active) filter criteria
+        currentAppliedFilterCriteria = new ArbitrageFilterBottomSheet.FilterCriteria();
+
+        // Register for filter dialog results
+        getParentFragmentManager().setFragmentResultListener("filterRequestKey", 
+            getViewLifecycleOwner(), 
+            (requestKey, result) -> {
+                Log.d("OpportunitiesFragment", "Received filter dialog result");
+                
+                FilterCriteria newCriteria = result.getParcelable("filterCriteria");
+                if (newCriteria != null) {
+                    Log.d("OpportunitiesFragment", "Converting FilterCriteria to ArbitrageFilterBottomSheet.FilterCriteria");
+                    
+                    // Create new ArbitrageFilterBottomSheet.FilterCriteria
+                    ArbitrageFilterBottomSheet.FilterCriteria convertedCriteria = new ArbitrageFilterBottomSheet.FilterCriteria();
+                    
+                    // Set profit percentages
+                    convertedCriteria.setMinProfitPercentage((double)newCriteria.getMinProfitPercent());
+                    convertedCriteria.setMaxProfitPercentage((double)newCriteria.getMaxProfitPercent());
+                    
+                    Log.d("OpportunitiesFragment", String.format("Setting profit range: %.2f - %.2f",
+                        newCriteria.getMinProfitPercent(), newCriteria.getMaxProfitPercent()));
+                    
+                    // Convert risk levels
+                    Set<String> riskLevels = newCriteria.getRiskLevels();
+                    if (riskLevels != null && !riskLevels.isEmpty()) {
+                        String riskLevel = riskLevels.iterator().next();
+                        Log.d("OpportunitiesFragment", "Setting risk level: " + riskLevel);
+                        convertedCriteria.setRiskLevel(riskLevel);
+                    } else {
+                        Log.d("OpportunitiesFragment", "No risk level selected, using Any");
+                        convertedCriteria.setRiskLevel(ArbitrageFilterBottomSheet.FilterCriteria.RISK_LEVEL_ANY);
+                    }
+                    
+                    // Convert exchanges
+                    Set<String> exchanges = newCriteria.getExchanges();
+                    if (exchanges != null && !exchanges.isEmpty()) {
+                        List<String> exchangeList = new ArrayList<>(exchanges);
+                        Log.d("OpportunitiesFragment", "Setting exchanges: " + exchangeList);
+                        convertedCriteria.setSourceExchanges(exchangeList);
+                        convertedCriteria.setDestinationExchanges(exchangeList);
+                    } else {
+                        Log.d("OpportunitiesFragment", "No exchanges selected");
+                        convertedCriteria.setSourceExchanges(new ArrayList<>());
+                        convertedCriteria.setDestinationExchanges(new ArrayList<>());
+                    }
+                    
+                    // Update current criteria and apply filters
+                    currentAppliedFilterCriteria = convertedCriteria;
+                    Log.d("OpportunitiesFragment", "Updated filter criteria: " + currentAppliedFilterCriteria);
+                    
+                    applyFiltersAndSort();
+                    updateFilterFabAppearance();
+                    updateFilterInfo();
+                } else {
+                    Log.w("OpportunitiesFragment", "Received null filter criteria from dialog");
+                }
+            });
+
         opportunitiesRecyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
         opportunityAdapter = new OpportunityAdapter(requireContext());
         opportunitiesRecyclerView.setAdapter(opportunityAdapter);
-        
-        // Debug message at startup
+
         emptyStateText.setVisibility(View.VISIBLE);
-        emptyStateText.setText("Loading opportunities...");
+        emptyStateText.setText("Loading opportunities..."); // Using string resource 
 
-        // Set up search functionality
         setupSearchFunctionality();
-        
-        // Set up filter chips
-        setupFilterChips();
-        
-        // Set up advanced filters
-        setupAdvancedFilters();
+        setupTopFilterChips();
+        setupInlineAdvancedFilterPanelListeners(); // Sets up listeners for the inline panel UI
 
-        // Initialize ViewModel
         ExchangeRepository repository = new ExchangeRepository(requireContext());
         ViewModelFactory factory = new ViewModelFactory(repository);
         viewModel = new ViewModelProvider(requireActivity(), factory).get(ArbitrageViewModel.class);
-
-        // Observe ViewModel data
         observeViewModel();
-
-        // Initialize the data
         viewModel.initialize();
 
-        // Find views
         filterFab = view.findViewById(R.id.filter_fab);
-        
-        // Set up click listeners
         if (filterFab != null) {
-            filterFab.setOnClickListener(v -> {
-                if (getActivity() != null && isAdded()) {
-                    try {
-                        showFilterBottomSheet();
-                    } catch (Exception e) {
-                        Log.e("OpportunitiesFragment", "Error showing filter bottom sheet: " + e.getMessage(), e);
-                        Toast.makeText(getContext(), "Unable to show filters", Toast.LENGTH_SHORT).show();
+            filterFab.setOnClickListener(v -> showFilterBottomSheet());
+        }
+        updateFilterFabAppearance(); // Initial appearance based on default criteria
+        updateFilterInfo(); // Initial update for the filter info chips
+    }
+
+    private void initializeBaseViews(View view) {
+        opportunitiesRecyclerView = view.findViewById(R.id.opportunities_recycler_view);
+        emptyStateText = view.findViewById(R.id.empty_state_text);
+        searchEditText = view.findViewById(R.id.searchEditText);
+        clearButton = view.findViewById(R.id.clearButton);
+        filterButton = view.findViewById(R.id.filterButton); // This might be the FAB or another button
+        filterChipGroup = view.findViewById(R.id.filterChipGroup); // Top quick filter chips
+        filterChipsScrollView = view.findViewById(R.id.filterChipsScrollView);
+        matchingOpportunitiesText = view.findViewById(R.id.matchingOpportunitiesText);
+    }
+
+    private void initializeInlineAdvancedFilterViews(View view) {
+        advancedFilterFab = view.findViewById(R.id.advancedFilterFab); // FAB for inline panel toggle
+        filterPanel = view.findViewById(R.id.filterPanel); // The inline panel itself
+        profitRangeSlider = view.findViewById(R.id.profitRangeSlider);
+        profitMinValue = view.findViewById(R.id.profitMinValue);
+        profitMaxValue = view.findViewById(R.id.profitMaxValue);
+        exchangeChipGroup = view.findViewById(R.id.exchangeChipGroup); // Inline panel exchanges
+        riskLevelSlider = view.findViewById(R.id.riskLevelSlider);
+        executionTimeSpinner = view.findViewById(R.id.executionTimeSpinner);
+        volumeSlider = view.findViewById(R.id.volumeSlider);
+        resetFiltersButton = view.findViewById(R.id.resetFiltersButton); // For inline panel
+        applyFiltersButton = view.findViewById(R.id.applyFiltersButton); // For inline panel
+    }
+
+    private void setupTopFilterChips() {
+        if (filterChipGroup == null) return;
+        for (int i = 0; i < filterChipGroup.getChildCount(); i++) {
+            Chip chip = (Chip) filterChipGroup.getChildAt(i);
+            chip.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                if (isChecked) {
+                    String chipText = buttonView.getText().toString();
+                    currentChipFilter = chipText.equals("All") ? "" : chipText;
+                    searchEditText.setText(currentChipFilter);
+                    applyFiltersAndSort(); // Central method to apply all filters
+                    } else {
+                     // If a chip is unchecked, and it was the active currentChipFilter, clear it
+                    if (buttonView.getText().toString().equals(currentChipFilter)) {
+                        currentChipFilter = "";
+                        // Optionally clear searchEditText if it was auto-filled by this chip
+                        // searchEditText.setText(""); 
+                        applyFiltersAndSort();
                     }
                 }
             });
         }
-        
-        // Initialize with empty filter
-        currentFilter = new ArbitrageFilterBottomSheet.FilterCriteria();
+    }
+    
+    private void setupInlineAdvancedFilterPanelListeners() {
+        if (filterPanel == null && advancedFilterFab == null) return; 
 
-        // Set up fragment result listener for filter results
-        getParentFragmentManager().setFragmentResultListener("filterRequestKey", getViewLifecycleOwner(), 
-            (requestKey, result) -> {
-                Log.d("OpportunitiesFragment", "Filter results received!");
-                
-                // Extract filter criteria from result bundle
-                FilterCriteria criteria = result.getParcelable("filterCriteria");
-                if (criteria != null) {
-                    // Apply the filter criteria
-                    // For now, just log the received criteria
-                    Log.d("OpportunitiesFragment", "Received filter criteria: " + criteria.toString());
-                    
-                    // TODO: Apply the criteria to filter your data
-                    // applyFilterCriteria(criteria);
+        if (advancedFilterFab != null) {
+            advancedFilterFab.setOnClickListener(v -> toggleInlineFilterPanel());
+        }
+        if (filterPanel == null) {
+            Log.w("OpportunitiesFragment", "filterPanel is null, cannot set up inline listeners.");
+            return;
+        }
+
+        profitRangeSlider.addOnChangeListener((slider, value, fromUser) -> {
+            List<Float> values = slider.getValues();
+            if (values.size() >= 2) {
+                inlineMinProfitPercent = values.get(0);
+                inlineMaxProfitPercent = values.get(1);
+                if (profitMinValue != null) profitMinValue.setText(String.format(Locale.US, "%.1f%%", inlineMinProfitPercent));
+                if (profitMaxValue != null) profitMaxValue.setText(String.format(Locale.US, "%.1f%%+", inlineMaxProfitPercent));
+                // Live updates from inline panel can be contentious. 
+                // For now, let's NOT have sliders immediately apply filters to avoid too many refreshes.
+                // User must click the inline panel's "Apply Filters" button.
+            }
+        });
+
+        initializeInlineExchangeChips();
+
+        riskLevelSlider.addOnChangeListener((slider, value, fromUser) -> {
+            inlineMaxRiskLevelSliderValue = value;
+            View rootView = getView();
+            if (rootView != null) {
+                TextView riskLevelValueText = rootView.findViewById(R.id.riskLevelValue);
+                if (riskLevelValueText != null) riskLevelValueText.setText(getRiskLevelName(convertRiskSliderToScore(value)));
+            }
+             // No immediate filter application here either.
+        });
+
+        executionTimeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                // TODO: Define R.array.execution_time_values_minutes in arrays.xml (e.g., <integer-array name="execution_time_values_minutes"><item>-1</item><item>1</item>...</integer-array>)
+                int[] minutesMap = {-1, 1, 5, 15, 30}; //getResources().getIntArray(R.array.execution_time_values_minutes); // Example resource
+                if (position >= 0 && position < minutesMap.length) {
+                    inlineMaxExecutionTimeMinutes = minutesMap[position];
                 }
+                 // No immediate filter application.
+            }
+            @Override public void onNothingSelected(AdapterView<?> parent) { 
+                inlineMaxExecutionTimeMinutes = -1; 
+                // No immediate filter application.
+            }
+        });
+
+        volumeSlider.addOnChangeListener((slider, value, fromUser) -> {
+            inlineMinVolume = value;
+            // No immediate filter application.
+        });
+
+        resetFiltersButton.setOnClickListener(v -> {
+            resetAllFilters();
+        });
+
+        applyFiltersButton.setOnClickListener(v -> {
+            // Update currentAppliedFilterCriteria with values from the inline panel
+            if (currentAppliedFilterCriteria == null) {
+                currentAppliedFilterCriteria = new ArbitrageFilterBottomSheet.FilterCriteria();
+            }
+
+            currentAppliedFilterCriteria.setMinProfitPercentage(inlineMinProfitPercent);
+            currentAppliedFilterCriteria.setMaxProfitPercentage(inlineMaxProfitPercent);
+            
+            // Convert inline risk slider value (1-10) to a risk level string for FilterCriteria
+            currentAppliedFilterCriteria.setRiskLevel(mapSliderValueToFilterCriteriaRiskLevel(inlineMaxRiskLevelSliderValue));
+            
+            // Max Slippage: Inline panel does not have a slippage slider.
+            // So, currentAppliedFilterCriteria.maxSlippagePercentage remains as it was (from BS or default).
+            // If we wanted inline panel to reset it, we'd do:
+            // currentAppliedFilterCriteria.setMaxSlippagePercentage(FilterCriteria.DEFAULT_MAX_SLIPPAGE);
+
+            // Execution Time: Convert inlineMaxExecutionTimeMinutes to seconds for FilterCriteria
+            if (inlineMaxExecutionTimeMinutes == -1) { // "Any time"
+                // TODO: Ensure FilterCriteria.DEFAULT_MIN_EXECUTION_TIME is defined
+                currentAppliedFilterCriteria.setMinExecutionTime(0); 
+                // TODO: Ensure FilterCriteria.DEFAULT_MAX_EXECUTION_TIME is defined
+                currentAppliedFilterCriteria.setMaxExecutionTime(300);
+            } else {
+                currentAppliedFilterCriteria.setMinExecutionTime(0); // Assuming inline only sets max
+                currentAppliedFilterCriteria.setMaxExecutionTime(inlineMaxExecutionTimeMinutes * 60.0); // Convert minutes to seconds
+            }
+
+            // Exchanges: Use inlineSelectedExchanges for both source and destination for simplicity from inline panel.
+            // FilterCriteria expects List<String>. Ensure inlineSelectedExchanges is compatible.
+            currentAppliedFilterCriteria.setSourceExchanges(new ArrayList<>(inlineSelectedExchanges));
+            currentAppliedFilterCriteria.setDestinationExchanges(new ArrayList<>(inlineSelectedExchanges));
+            
+            // Volume: ArbitrageFilterBottomSheet.FilterCriteria does not have a dedicated volume field.
+            // The filtering for inlineMinVolume happens in the fallback part of opportunityMatchesAdvancedFilters.
+            // If volume were part of FilterCriteria, we'd set it here:
+            // currentAppliedFilterCriteria.setMinVolume(inlineMinVolume);
+
+            // Cryptocurrencies: Inline panel doesn't have crypto selection.
+            // currentAppliedFilterCriteria.cryptocurrencies remains as is.
+
+            applyFiltersAndSort(); 
+            updateFilterFabAppearance();
+            updateFilterInfo();
+            // Optional: Close the inline panel after applying
+            // if (isInlineFilterPanelVisible) {
+            // toggleInlineFilterPanel(); 
+            // }
+            Log.d("OpportunitiesFragment", "Applied inline panel filters to currentAppliedFilterCriteria: " + currentAppliedFilterCriteria.toString());
+        });
+    }
+    
+    private void initializeInlineExchangeChips() {
+        if (exchangeChipGroup == null) return;
+        for (int i = 0; i < exchangeChipGroup.getChildCount(); i++) {
+            Chip chip = (Chip) exchangeChipGroup.getChildAt(i);
+            String exchange = chip.getText().toString();
+            
+            chip.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                if (exchange.equals("All Exchanges")) {
+                    if (isChecked) {
+                        // Uncheck all other chips
+                        for (int j = 0; j < exchangeChipGroup.getChildCount(); j++) {
+                            Chip otherChip = (Chip) exchangeChipGroup.getChildAt(j);
+                            if (!otherChip.equals(buttonView) && otherChip.isChecked()) {
+                                otherChip.setChecked(false);
+                            }
+                        }
+                        inlineSelectedExchanges.clear();
+                    }
+                } else {
+                    // Uncheck "All Exchanges" chip
+                    Chip allChip = exchangeChipGroup.findViewById(R.id.chip_exchange_all);
+                    if (allChip.isChecked()) {
+                        allChip.setChecked(false);
+                    }
+                    
+                    if (isChecked) {
+                        inlineSelectedExchanges.add(exchange);
+                    } else {
+                        inlineSelectedExchanges.remove(exchange);
+                    }
+                    
+                    // If no exchanges selected, check "All Exchanges"
+                    if (inlineSelectedExchanges.isEmpty()) {
+                        allChip.setChecked(true);
+                    }
+                }
+                if (isInlineFilterPanelVisible) applyFiltersAndSort();
             });
+        }
     }
     
     private void setupSearchFunctionality() {
@@ -232,323 +443,154 @@ public class OpportunitiesFragment extends Fragment implements FilterBottomSheet
         
         // Configure filter button
         filterButton.setOnClickListener(v -> {
-            try {
-                // Create and show the new FilterDialogFragment
-                FilterDialogFragment filterDialog = new FilterDialogFragment();
-                
-                // Pass any existing filter criteria if needed
-                if (currentFilter != null) {
-                    Bundle args = new Bundle();
-                    args.putParcelable("current_filter", currentFilter);
-                    filterDialog.setArguments(args);
-                }
-                
-                // Use the appropriate FragmentManager
-                // Use getChildFragmentManager() if FilterDialogFragment should be a child of this fragment
-                // Use getParentFragmentManager() if FilterDialogFragment should be at the same level as this fragment
-                filterDialog.show(getParentFragmentManager(), "FilterDialog");
-            } catch (Exception e) {
-                Log.e("OpportunitiesFragment", "Error showing filter dialog: " + e.getMessage(), e);
-                // Show a friendly error message to the user
-                Toast.makeText(requireContext(), "Could not open filter dialog", Toast.LENGTH_SHORT).show();
-            }
+            showFilterDialog();
         });
     }
     
-    private void setupFilterChips() {
-        // Set up click listener for each chip
-        for (int i = 0; i < filterChipGroup.getChildCount(); i++) {
-            Chip chip = (Chip) filterChipGroup.getChildAt(i);
-            chip.setOnCheckedChangeListener((buttonView, isChecked) -> {
-                if (isChecked) {
-                    // Get the selected filter
-                    String chipText = buttonView.getText().toString();
-                    if (chipText.equals("All")) {
-                        currentChipFilter = "";
-                    } else {
-                        currentChipFilter = chipText;
-                    }
-                    
-                    // Update the search text to match the chip selection
-                    searchEditText.setText(currentChipFilter);
-                    clearButton.setVisibility(currentChipFilter.isEmpty() ? View.GONE : View.VISIBLE);
-                    
-                    // Apply the filter
-                    filterOpportunities();
-                }
-            });
-        }
-    }
-    
-    private void setupAdvancedFilters() {
+    private void showFilterDialog() {
         try {
-            // Check for null views that could cause crashes
-            if (advancedFilterFab == null || filterPanel == null || 
-                profitRangeSlider == null || profitMinValue == null || 
-                profitMaxValue == null || exchangeChipGroup == null || 
-                riskLevelSlider == null || executionTimeSpinner == null || 
-                volumeSlider == null || resetFiltersButton == null || 
-                applyFiltersButton == null || matchingOpportunitiesText == null) {
+            Log.d("OpportunitiesFragment", "showFilterDialog: Creating new FilterDialogFragment");
+            FilterDialogFragment filterDialog = new FilterDialogFragment();
+            
+            // Convert ArbitrageFilterBottomSheet.FilterCriteria to FilterCriteria
+            if (currentAppliedFilterCriteria != null) {
+                Log.d("OpportunitiesFragment", "showFilterDialog: Converting current filter criteria");
                 
-                Log.e("OpportunitiesFragment", "One or more filter views are null - cannot setup advanced filters");
-                return;
-            }
-            
-            // Set up the FAB to show/hide the filter panel
-            advancedFilterFab.setOnClickListener(v -> toggleFilterPanel());
-            
-            // Set up the profit range slider
-            profitRangeSlider.setValues(0f, 50f);
-            profitRangeSlider.addOnChangeListener((slider, value, fromUser) -> {
-                try {
-                    List<Float> values = slider.getValues();
-                    if (values != null && values.size() >= 2) {
-                        minProfitPercent = values.get(0);
-                        maxProfitPercent = values.get(1);
-                        profitMinValue.setText(String.format(Locale.US, "%.1f%%", minProfitPercent));
-                        profitMaxValue.setText(String.format(Locale.US, "%.1f%%+", maxProfitPercent));
-                        updateMatchingCount();
-                    }
-                } catch (Exception e) {
-                    Log.e("OpportunitiesFragment", "Error updating profit range: " + e.getMessage(), e);
-                }
-            });
-            
-            // Set up the exchange chips
-            initializeExchangeChips();
-            
-            // Set up the risk level slider
-            TextView riskLevelValue = null;
-            TextView slippageValueText = null;
-            TextView riskScoreValueText = null;
-            
-            try {
-                View view = getView();
-                if (view != null) {
-                    riskLevelValue = view.findViewById(R.id.riskLevelValue);
-                    slippageValueText = view.findViewById(R.id.slippageValueText);
-                    riskScoreValueText = view.findViewById(R.id.riskScoreValueText);
-                }
-            } catch (Exception e) {
-                Log.e("OpportunitiesFragment", "Error finding risk text views: " + e.getMessage(), e);
-            }
-            
-            final TextView finalRiskLevelValue = riskLevelValue;
-            final TextView finalSlippageValueText = slippageValueText;
-            final TextView finalRiskScoreValueText = riskScoreValueText;
-            
-            if (finalRiskLevelValue != null && riskLevelSlider != null) {
-                try {
-                    // Set initial value
-                    finalRiskLevelValue.setText(getRiskLevelName(convertRiskSliderToScore(maxRiskLevel)));
-                    updateSlippageInfo(maxRiskLevel, finalSlippageValueText, finalRiskScoreValueText);
-                } catch (Exception e) {
-                    Log.e("OpportunitiesFragment", "Error setting initial risk values: " + e.getMessage(), e);
-                }
+                // Create new FilterCriteria instance
+                FilterCriteria dialogCriteria = new FilterCriteria();
                 
-                // Set up slider listener
-                riskLevelSlider.addOnChangeListener((slider, value, fromUser) -> {
-                    try {
-                        maxRiskLevel = value;
-                        double riskScore = convertRiskSliderToScore(value);
-                        
-                        // Update the displayed risk level name
-                        if (finalRiskLevelValue != null) {
-                            finalRiskLevelValue.setText(getRiskLevelName(riskScore));
-                        }
-                        
-                        // Update slippage and risk score information
-                        updateSlippageInfo(value, finalSlippageValueText, finalRiskScoreValueText);
-                        
-                        // Update matching count
-                        updateMatchingCount();
-                        
-                        // Apply filter immediately if panel is visible
-                        if (isFilterPanelVisible) {
-                            applyAllFilters();
-                        }
-                    } catch (Exception e) {
-                        Log.e("OpportunitiesFragment", "Error updating risk level: " + e.getMessage(), e);
-                    }
-                });
-            }
-            
-            // Rest of the setup code...
-            setupExecutionTimeSpinner();
-            setupVolumeSlider();
-            setupFilterButtons();
-            
-        } catch (Exception e) {
-            Log.e("OpportunitiesFragment", "Critical error setting up advanced filters: " + e.getMessage(), e);
-        }
-    }
-    
-    private void setupExecutionTimeSpinner() {
-        try {
-            // Set up the execution time spinner
-            String[] executionTimeOptions = {
-                "Any time", 
-                "< 1 minute", 
-                "< 5 minutes", 
-                "< 15 minutes", 
-                "< 30 minutes"
-            };
-            
-            if (executionTimeSpinner != null) {
-                ArrayAdapter<String> spinnerAdapter = new ArrayAdapter<>(
-                    requireContext(), 
-                    R.layout.spinner_dropdown_item, 
-                    executionTimeOptions
-                );
-                executionTimeSpinner.setAdapter(spinnerAdapter);
-                executionTimeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-                    @Override
-                    public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                        switch (position) {
-                            case 0: maxExecutionTimeMinutes = -1; break; // Any time
-                            case 1: maxExecutionTimeMinutes = 1; break;  // < 1 minute
-                            case 2: maxExecutionTimeMinutes = 5; break;  // < 5 minutes
-                            case 3: maxExecutionTimeMinutes = 15; break; // < 15 minutes
-                            case 4: maxExecutionTimeMinutes = 30; break; // < 30 minutes
-                        }
-                        updateMatchingCount();
-                    }
-    
-                    @Override
-                    public void onNothingSelected(AdapterView<?> parent) {
-                        maxExecutionTimeMinutes = -1; // Any time
-                    }
-                });
-            }
-        } catch (Exception e) {
-            Log.e("OpportunitiesFragment", "Error setting up execution time spinner: " + e.getMessage(), e);
-        }
-    }
-    
-    private void setupVolumeSlider() {
-        try {
-            // Set up the volume slider
-            if (volumeSlider != null) {
-                volumeSlider.addOnChangeListener((slider, value, fromUser) -> {
-                    minVolume = value;
-                    updateMatchingCount();
-                });
-            }
-        } catch (Exception e) {
-            Log.e("OpportunitiesFragment", "Error setting up volume slider: " + e.getMessage(), e);
-        }
-    }
-    
-    private void setupFilterButtons() {
-        try {
-            // Set up the button actions
-            if (resetFiltersButton != null) {
-                resetFiltersButton.setOnClickListener(v -> {
-                    resetFilters();
-                    // Apply filter after reset
-                    applyAllFilters();
-                    // Show message that filters were reset
-                    if (matchingOpportunitiesText != null) {
-                        matchingOpportunitiesText.setText("Filters reset");
-                    }
-                });
-            }
-            
-            if (applyFiltersButton != null) {
-                applyFiltersButton.setOnClickListener(v -> {
-                    // Apply the filters
-                    applyAllFilters();
-                    // Close the filter panel
-                    toggleFilterPanel();
-                    // Show message that filters were applied
-                    if (matchingOpportunitiesText != null) {
-                        matchingOpportunitiesText.setText("Filters applied");
-                    }
-                });
-            }
-        } catch (Exception e) {
-            Log.e("OpportunitiesFragment", "Error setting up filter buttons: " + e.getMessage(), e);
-        }
-    }
-    
-    private void initializeExchangeChips() {
-        // Define valid exchanges
-        List<String> validExchanges = Arrays.asList("Binance", "OKX", "ByBit", "Kraken", "Coinbase");
-        
-        for (int i = 0; i < exchangeChipGroup.getChildCount(); i++) {
-            Chip chip = (Chip) exchangeChipGroup.getChildAt(i);
-            String exchange = chip.getText().toString();
-            
-            chip.setOnCheckedChangeListener((buttonView, isChecked) -> {
-                if (exchange.equals("All Exchanges")) {
-                    if (isChecked) {
-                        // Uncheck all other chips
-                        for (int j = 0; j < exchangeChipGroup.getChildCount(); j++) {
-                            Chip otherChip = (Chip) exchangeChipGroup.getChildAt(j);
-                            if (!otherChip.equals(buttonView) && otherChip.isChecked()) {
-                                otherChip.setChecked(false);
-                            }
-                        }
-                        selectedExchanges.clear();
-                    }
+                // Set profit percentages
+                dialogCriteria.setMinProfitPercent((float)currentAppliedFilterCriteria.getMinProfitPercentage());
+                dialogCriteria.setMaxProfitPercent((float)currentAppliedFilterCriteria.getMaxProfitPercentage());
+                
+                Log.d("OpportunitiesFragment", String.format("showFilterDialog: Setting profit range: %.2f - %.2f",
+                    currentAppliedFilterCriteria.getMinProfitPercentage(),
+                    currentAppliedFilterCriteria.getMaxProfitPercentage()));
+                
+                // Convert risk level to risk levels set
+                Set<String> riskLevels = new HashSet<>();
+                String currentRisk = currentAppliedFilterCriteria.getRiskLevel();
+                if (currentRisk != null && !ArbitrageFilterBottomSheet.FilterCriteria.RISK_LEVEL_ANY.equals(currentRisk)) {
+                    riskLevels.add(currentRisk);
+                    Log.d("OpportunitiesFragment", "showFilterDialog: Adding risk level: " + currentRisk);
                 } else {
-                    // Uncheck "All Exchanges" chip
-                    Chip allChip = exchangeChipGroup.findViewById(R.id.chip_exchange_all);
-                    if (allChip.isChecked()) {
-                        allChip.setChecked(false);
-                    }
-                    
-                    if (isChecked) {
-                        selectedExchanges.add(exchange);
-                    } else {
-                        selectedExchanges.remove(exchange);
-                    }
-                    
-                    // If no exchanges selected, check "All Exchanges"
-                    if (selectedExchanges.isEmpty()) {
-                        allChip.setChecked(true);
-                    }
+                    Log.d("OpportunitiesFragment", "showFilterDialog: No specific risk level selected");
                 }
-                updateMatchingCount();
-            });
+                dialogCriteria.setRiskLevels(riskLevels);
+                
+                // Convert exchanges - combine source and destination exchanges
+                Set<String> exchanges = new HashSet<>();
+                
+                // Add source exchanges if any
+                List<String> sourceExchanges = currentAppliedFilterCriteria.getSourceExchanges();
+                if (sourceExchanges != null && !sourceExchanges.isEmpty()) {
+                    exchanges.addAll(sourceExchanges);
+                    Log.d("OpportunitiesFragment", "showFilterDialog: Adding source exchanges: " + sourceExchanges);
+                }
+                
+                // Add destination exchanges if any
+                List<String> destExchanges = currentAppliedFilterCriteria.getDestinationExchanges();
+                if (destExchanges != null && !destExchanges.isEmpty()) {
+                    exchanges.addAll(destExchanges);
+                    Log.d("OpportunitiesFragment", "showFilterDialog: Adding destination exchanges: " + destExchanges);
+                }
+                
+                dialogCriteria.setExchanges(exchanges);
+                
+                // Create bundle and set arguments
+                Bundle args = new Bundle();
+                args.putParcelable("current_filter", dialogCriteria);
+                filterDialog.setArguments(args);
+                
+                Log.d("OpportunitiesFragment", "showFilterDialog: Created dialog criteria: " + dialogCriteria);
+            } else {
+                Log.d("OpportunitiesFragment", "showFilterDialog: No current filter criteria, using defaults");
+            }
+            
+            filterDialog.show(getParentFragmentManager(), "FilterDialog");
+            Log.d("OpportunitiesFragment", "showFilterDialog: Dialog shown");
+            
+        } catch (Exception e) {
+            Log.e("OpportunitiesFragment", "Error showing filter dialog: " + e.getMessage(), e);
+            Log.e("OpportunitiesFragment", "Stack trace:", e);
+            Toast.makeText(requireContext(), "Could not open filter dialog", Toast.LENGTH_SHORT).show();
         }
     }
     
-    private void toggleFilterPanel() {
-        isFilterPanelVisible = !isFilterPanelVisible;
-        filterPanel.setVisibility(isFilterPanelVisible ? View.VISIBLE : View.GONE);
+    private void toggleInlineFilterPanel() {
+        isInlineFilterPanelVisible = !isInlineFilterPanelVisible;
+        filterPanel.setVisibility(isInlineFilterPanelVisible ? View.VISIBLE : View.GONE);
         
         // Rotate the FAB icon to indicate open/closed state
-        advancedFilterFab.setRotation(isFilterPanelVisible ? 45 : 0);
+        advancedFilterFab.setRotation(isInlineFilterPanelVisible ? 45 : 0);
     }
     
-    private void resetFilters() {
-        // Reset profit range
-        profitRangeSlider.setValues(0f, 50f);
-        minProfitPercent = 0f;
-        maxProfitPercent = 50f;
-        profitMinValue.setText("0%");
-        profitMaxValue.setText("50%+");
-        
-        // Reset exchanges
-        selectedExchanges.clear();
-        for (int i = 0; i < exchangeChipGroup.getChildCount(); i++) {
-            Chip chip = (Chip) exchangeChipGroup.getChildAt(i);
-            chip.setChecked(chip.getId() == R.id.chip_exchange_all);
+    private void resetAllFilters() {
+        // Reset BottomSheet Filter Criteria to default
+        currentAppliedFilterCriteria = new ArbitrageFilterBottomSheet.FilterCriteria();
+
+        // Reset Inline Panel UI and corresponding state variables
+        if (profitRangeSlider != null) { 
+            profitRangeSlider.setValues(0f, 50f);
+            this.inlineMinProfitPercent = 0f;
+            this.inlineMaxProfitPercent = 50f;
+            // TODO: Define R.string.profit_min_default_text in strings.xml
+            if(profitMinValue != null) profitMinValue.setText("0%"); 
+            // TODO: Define R.string.profit_max_default_text in strings.xml
+            if(profitMaxValue != null) profitMaxValue.setText("50%+");
+        }
+        if (exchangeChipGroup != null) {
+            this.inlineSelectedExchanges.clear();
+            for (int i = 0; i < exchangeChipGroup.getChildCount(); i++) {
+                Chip chip = (Chip) exchangeChipGroup.getChildAt(i);
+                // TODO: Ensure R.id.chip_exchange_all_inline exists in your inline panel layout
+                if (chip != null) chip.setChecked(chip.getId() == R.id.chip_exchange_all); 
+            }
+        }
+        if (riskLevelSlider != null) {
+            riskLevelSlider.setValue(5f); // Default slider position
+            this.inlineMaxRiskLevelSliderValue = 5f;
+            View rootView = getView();
+            if (rootView != null) {
+                TextView riskLevelValueText = rootView.findViewById(R.id.riskLevelValue);
+                if (riskLevelValueText != null) riskLevelValueText.setText(getRiskLevelName(convertRiskSliderToScore(this.inlineMaxRiskLevelSliderValue)));
+            }
+        }
+        if (executionTimeSpinner != null) {
+            executionTimeSpinner.setSelection(0); // "Any time"
+            this.inlineMaxExecutionTimeMinutes = -1;
+        }
+        if (volumeSlider != null) {
+            volumeSlider.setValue(1f); // Default volume slider position
+            this.inlineMinVolume = 1f;
         }
         
-        // Reset risk level
-        riskLevelSlider.setValue(5f);
-        maxRiskLevel = 5f;
-        
-        // Reset execution time
-        executionTimeSpinner.setSelection(0); // "Any time"
-        maxExecutionTimeMinutes = -1;
-        
-        // Reset volume
-        volumeSlider.setValue(1f);
-        minVolume = 1f;
-        
+        // Reset simple search and top chip filter
+        if (searchEditText != null) searchEditText.setText("");
+        this.currentSearchQuery = "";
+        // For the top filterChipGroup (quick symbol filters), we should clear its check, not remove all views if they are static.
+        if (filterChipGroup != null && filterChipGroup.isSingleSelection()) { 
+            filterChipGroup.clearCheck();
+        }
+        this.currentChipFilter = "";
+
+        applyFiltersAndSort(); // Re-apply all (now reset) filters
+        updateFilterFabAppearance(); 
+        updateFilterInfo(); // Update the top summary chips
+
+        if (matchingOpportunitiesText != null) {
+            // TODO: Define R.string.filters_reset_text in strings.xml
+             matchingOpportunitiesText.setText("Filters Reset"); 
+        }
+    }
+    
+    private void applyFiltersAndSort() {
+        filteredOpportunities = filterOpportunities(); // Correctly call the reinstated method
+        sortOpportunitiesByProfit(filteredOpportunities, false);
+        if (opportunityAdapter != null) { // Add null check for adapter
+            opportunityAdapter.updateOpportunities(filteredOpportunities);
+            opportunityAdapter.notifyDataSetChanged(); // Consider more specific notify calls if performance is an issue
+        }
         updateMatchingCount();
     }
     
@@ -614,7 +656,7 @@ public class OpportunitiesFragment extends Fragment implements FilterBottomSheet
             
             // Apply any existing filters
             try {
-                filteredOpportunities = filterOpportunities();
+                filteredOpportunities = filterOpportunities(); // Correctly call the reinstated method
             } catch (Exception e) {
                 Log.e("OpportunitiesFragment", "Error filtering opportunities: " + e.getMessage(), e);
                 filteredOpportunities = new ArrayList<>(allOpportunities); // Use all as fallback
@@ -754,99 +796,147 @@ public class OpportunitiesFragment extends Fragment implements FilterBottomSheet
     }
     
     private boolean opportunityMatchesAdvancedFilters(ArbitrageOpportunity opportunity) {
-        try {
-            // Handle null opportunity
-            if (opportunity == null) {
-                Log.w("OpportunitiesFragment", "Null opportunity in advanced filters");
+        if (opportunity == null) {
+            Log.w("OpportunitiesFragment", "Null opportunity in advanced filters");
+            return false;
+        }
+
+        // Apply simple text search (applies to all cases, before advanced filters)
+        if (!currentSearchQuery.isEmpty()) {
+            String symbol = opportunity.getNormalizedSymbol() != null ? opportunity.getNormalizedSymbol().toLowerCase(Locale.getDefault()) : "";
+            String buyEx = opportunity.getExchangeBuy() != null ? opportunity.getExchangeBuy().toLowerCase(Locale.getDefault()) : "";
+            String sellEx = opportunity.getExchangeSell() != null ? opportunity.getExchangeSell().toLowerCase(Locale.getDefault()) : "";
+            if (!symbol.contains(currentSearchQuery) && !buyEx.contains(currentSearchQuery) && !sellEx.contains(currentSearchQuery)) {
                 return false;
+            }
+        }
+
+        // Apply top-level quick chip filter (applies to all cases, before advanced filters)
+        if (!currentChipFilter.isEmpty()) {
+            String symbol = opportunity.getNormalizedSymbol() != null ? opportunity.getNormalizedSymbol().toUpperCase(Locale.getDefault()) : "";
+            // Assuming currentChipFilter is also uppercase or comparison is case-insensitive if needed.
+            if (!symbol.contains(currentChipFilter)) {
+                return false;
+            }
+        }
+
+        // Skip non-positive profit opportunities early (applies to all advanced filtering strategies)
+        if (opportunity.getProfitPercent() <= 0) {
+            return false;
+        }
+
+        // Check if advanced filters from ArbitrageFilterBottomSheet are active and should be used
+        if (currentAppliedFilterCriteria != null && currentAppliedFilterCriteria.hasActiveFilters()) {
+            // Profit Percentage Filter
+            if (opportunity.getProfitPercent() < currentAppliedFilterCriteria.getMinProfitPercentage() ||
+                (currentAppliedFilterCriteria.getMaxProfitPercentage() < 50.0f && // 50.0f is "Any" or max
+                 opportunity.getProfitPercent() > currentAppliedFilterCriteria.getMaxProfitPercentage())) {
+                return false;
+            }
+
+            // Risk Level Filter
+            String criteriaRiskLevel = currentAppliedFilterCriteria.getRiskLevel();
+            // TODO: Ensure FilterCriteria.RISK_LEVEL_ANY is defined
+            if (criteriaRiskLevel != null && !"Any".equals(criteriaRiskLevel)) { 
+                double oppRiskScore = getRiskScoreForOpportunity(opportunity); // Assumes 0.0 (high risk) to 1.0 (low risk)
+                boolean match = false;
+                // TODO: Ensure FilterCriteria.RISK_LEVEL_LOW is defined
+                if ("Low".equals(criteriaRiskLevel) && oppRiskScore >= 0.75) match = true;
+                // TODO: Ensure FilterCriteria.RISK_LEVEL_MEDIUM is defined
+                else if ("Medium".equals(criteriaRiskLevel) && oppRiskScore >= 0.4 && oppRiskScore < 0.75) match = true;
+                // TODO: Ensure FilterCriteria.RISK_LEVEL_HIGH is defined
+                else if ("High".equals(criteriaRiskLevel) && oppRiskScore >= 0.1 && oppRiskScore < 0.4) match = true;
+                // TODO: Ensure FilterCriteria.RISK_LEVEL_VERY_HIGH is defined
+                else if ("Very High".equals(criteriaRiskLevel) && oppRiskScore < 0.1) match = true;
+                if (!match) return false;
+            }
+
+            // Max Slippage Filter (Criteria stores as percentage, e.g., 1.0 for 1%)
+            // Opportunity stores as decimal, e.g., 0.01 for 1%
+            if (currentAppliedFilterCriteria.getMaxSlippagePercentage() < 2.0f) { // 2.0f is "Any" or max
+                 if (opportunity.getTotalSlippagePercentage() > (currentAppliedFilterCriteria.getMaxSlippagePercentage() / 100.0)) {
+                    return false;
+                }
+            }
+
+
+            // Execution Time Filter (Criteria stores min/max in seconds)
+            // Opportunity stores estimatedTimeMinutes
+            double oppExecTimeSeconds = opportunity.getEstimatedTimeMinutes() * 60.0;
+            if (currentAppliedFilterCriteria.getMaxExecutionTime() < 300) { // 300s (5 min) is "Any" from criteria
+                if (oppExecTimeSeconds < currentAppliedFilterCriteria.getMinExecutionTime() ||
+                    oppExecTimeSeconds > currentAppliedFilterCriteria.getMaxExecutionTime()) {
+                    return false;
+                }
+            }
+
+
+            // Source Exchanges Filter
+            List<String> sourceExchanges = currentAppliedFilterCriteria.getSourceExchanges();
+            if (sourceExchanges != null && !sourceExchanges.isEmpty()) { // Empty list means "Any"
+                if (!sourceExchanges.contains(opportunity.getExchangeBuy())) {
+                    return false;
+                }
+            }
+
+            // Destination Exchanges Filter
+            List<String> destExchanges = currentAppliedFilterCriteria.getDestinationExchanges();
+            if (destExchanges != null && !destExchanges.isEmpty()) { // Empty list means "Any"
+                if (!destExchanges.contains(opportunity.getExchangeSell())) {
+                    return false;
+                }
             }
             
-            // Skip negative profit opportunities
-            if (opportunity.getProfitPercent() <= 0) {
+            // Volume is not explicitly in currentAppliedFilterCriteria from ArbitrageFilterBottomSheet.
+            // If it were, it would be handled here.
+
+            return true; // Passed all active filters from currentAppliedFilterCriteria
+        }
+        // Fallback to Inline Panel Filters ONLY IF currentAppliedFilterCriteria is null or not active.
+        // This logic assumes that if the BottomSheet was used and resulted in "no active filters",
+        // then we respect that and don't fall back to the inline panel's last state unless explicitly desired.
+        // To make the inline panel truly independent when the bottom sheet has no active filters,
+        // one might add a specific check here like: "if (isInlineFilterPanelVisible && !currentAppliedFilterCriteria.hasActiveFilters())"
+        // For now, this structure prioritizes BottomSheet criteria if present and active.
+        else {
+            // Profit filter (inline)
+            if (opportunity.getProfitPercent() < inlineMinProfitPercent || (inlineMaxProfitPercent < 50.0f && opportunity.getProfitPercent() > inlineMaxProfitPercent)) {
                 return false;
             }
-    
-            // Apply profit filter - only filter if maxProfitPercent is less than 100
-            if (maxProfitPercent < 100) {
-                double profitPercent = opportunity.getProfitPercent();
-                if (profitPercent < minProfitPercent || profitPercent > maxProfitPercent) {
+
+            // Exchanges filter (inline)
+            if (!inlineSelectedExchanges.isEmpty()) {
+                if (opportunity.getExchangeBuy() == null || opportunity.getExchangeSell() == null ||
+                    (!inlineSelectedExchanges.contains(opportunity.getExchangeBuy()) && !inlineSelectedExchanges.contains(opportunity.getExchangeSell()))) {
                     return false;
                 }
             }
-    
-            // Check exchanges
-            if (!selectedExchanges.isEmpty()) {
-                String buyExchange = opportunity.getExchangeBuy();
-                String sellExchange = opportunity.getExchangeSell();
-                
-                // Skip if exchanges are null
-                if (buyExchange == null || sellExchange == null) {
-                    Log.w("OpportunitiesFragment", "Null exchange in " + opportunity.getNormalizedSymbol());
-                    return false;
-                }
-                
-                if (!selectedExchanges.contains(buyExchange) && !selectedExchanges.contains(sellExchange)) {
-                    return false;
-                }
-            }
-    
-            // Apply risk filter if maxRiskLevel is not at maximum (which is 10)
-            if (maxRiskLevel < 10.0) {
+
+            // Risk filter (inline)
+            if (inlineMaxRiskLevelSliderValue < 10.0f) { // 10.0f on slider means "any risk"
                 try {
-                    // Convert slider value (1-10) to risk score (0-1)
-                    double maxRiskScore = convertRiskSliderToScore(maxRiskLevel);
-                    
-                    // Get the opportunity's risk score (already on 0-1 scale)
-                    double opportunityRiskScore = 0.5; // Default to medium risk
-                    try {
-                        opportunityRiskScore = getRiskScoreForOpportunity(opportunity);
-                    } catch (Exception e) {
-                        Log.e("OpportunitiesFragment", "Error getting risk score: " + e.getMessage());
-                        // Use default medium risk
-                    }
-                    
-                    // Get the risk level name for logging
-                    String riskLevel = "Medium"; // Default
-                    try {
-                        riskLevel = getRiskLevelName(opportunityRiskScore);
-                    } catch (Exception e) {
-                        Log.e("OpportunitiesFragment", "Error getting risk level name: " + e.getMessage());
-                    }
-                    
-                    // Use safe string formatting to avoid crashes
-                    String normalizedSymbol = opportunity.getNormalizedSymbol();
-                    if (normalizedSymbol == null) normalizedSymbol = "unknown";
-                    
-                    try {
-                        Log.d("OpportunitiesFragment", String.format("Checking opportunity %s - Risk Score: %.2f (%s) vs Max Risk Score: %.2f",
-                            normalizedSymbol, opportunityRiskScore, riskLevel, maxRiskScore));
-                    } catch (Exception e) {
-                        Log.e("OpportunitiesFragment", "Error logging risk info: " + e.getMessage());
-                    }
-                    
-                    // IMPORTANT: Higher risk score means LOWER risk (0 = highest risk, 1 = lowest risk)
-                    // Only include opportunities with risk score >= maxRiskScore 
-                    // (which means risk is lower than or equal to the maximum allowed risk)
-                    if (opportunityRiskScore < maxRiskScore) {
-                        try {
-                            Log.d("OpportunitiesFragment", String.format("Filtered out %s due to high risk (%.2f < %.2f)",
-                                normalizedSymbol, opportunityRiskScore, maxRiskScore));
-                        } catch (Exception e) {
-                            Log.e("OpportunitiesFragment", "Error logging filtered opportunity: " + e.getMessage());
-                        }
+                    double minAcceptableRiskScore = convertRiskSliderToScore(inlineMaxRiskLevelSliderValue);
+                    if (getRiskScoreForOpportunity(opportunity) < minAcceptableRiskScore) {
                         return false;
                     }
                 } catch (Exception e) {
-                    Log.e("OpportunitiesFragment", "Error in risk filtering: " + e.getMessage());
-                    // On error, include the opportunity (don't filter it out)
-                    // This prevents crashes while still maintaining most filtering functionality
+                    Log.e("OpportunitiesFragment", "Error in inline risk filtering: " + e.getMessage());
                 }
             }
-    
-            return true;
-        } catch (Exception e) {
-            Log.e("OpportunitiesFragment", "Critical error in filter matching: " + e.getMessage(), e);
-            return true; // On critical error, include the opportunity rather than crash
+
+            // Execution Time filter (inline)
+            if (inlineMaxExecutionTimeMinutes != -1) { // -1 indicates "any time"
+                if (opportunity.getEstimatedTimeMinutes() > inlineMaxExecutionTimeMinutes) {
+                    return false;
+                }
+            }
+
+            // Volume filter (inline)
+            if (opportunity.getVolume() < inlineMinVolume) { // Assumes inlineMinVolume from slider
+                return false;
+            }
+            
+            return true; // Passed all active inline filters (or no inline filters were restrictive)
         }
     }
 
@@ -955,114 +1045,32 @@ public class OpportunitiesFragment extends Fragment implements FilterBottomSheet
     }
 
     /**
-     * Apply all filters and update the display with filtered opportunities
-     */
-    private void applyAllFilters() {
-        // If we have no opportunities, don't attempt to filter
-        if (allOpportunities == null || allOpportunities.isEmpty()) {
-            matchingOpportunitiesText.setText("No opportunities available");
-            opportunityAdapter.updateOpportunities(new ArrayList<>());
-            return;
-        }
-        
-        // Filter, sort and display the opportunities
-        List<ArbitrageOpportunity> filteredList = filterOpportunities();
-        sortOpportunitiesByProfit(filteredList, false);
-        opportunityAdapter.updateOpportunities(filteredList);
-        
-        // Update the count display
-        if (filteredList.isEmpty()) {
-            matchingOpportunitiesText.setText("No opportunities match filters");
-        } else {
-            matchingOpportunitiesText.setText(String.format(Locale.US, "%d opportunities match", filteredList.size()));
-        }
-    }
-    
-    /**
-     * Filter opportunities based on all applied filters (search, chips, advanced filters)
-     * @return List of filtered opportunities
-     */
-    private List<ArbitrageOpportunity> filterOpportunities() {
-        if (allOpportunities == null || allOpportunities.isEmpty()) {
-            return new ArrayList<>();
-        }
-        
-        // Create a filtered list based on all filters
-        List<ArbitrageOpportunity> filteredList = new ArrayList<>();
-        
-        for (ArbitrageOpportunity opportunity : allOpportunities) {
-            try {
-                // Skip null opportunities
-                if (opportunity == null) {
-                    continue;
-                }
-                
-                // Skip opportunities with negative profit
-                if (opportunity.getProfitPercent() <= 0) {
-                    continue;
-                }
-                
-                // Apply search filter if any
-                if (!currentSearchQuery.isEmpty()) {
-                    String symbol = opportunity.getNormalizedSymbol() != null ? 
-                        opportunity.getNormalizedSymbol().toLowerCase(Locale.getDefault()) : "";
-                    String buyExchange = opportunity.getExchangeBuy() != null ? 
-                        opportunity.getExchangeBuy().toLowerCase(Locale.getDefault()) : "";
-                    String sellExchange = opportunity.getExchangeSell() != null ? 
-                        opportunity.getExchangeSell().toLowerCase(Locale.getDefault()) : "";
-                    
-                    if (!symbol.contains(currentSearchQuery) && 
-                        !buyExchange.contains(currentSearchQuery) && 
-                        !sellExchange.contains(currentSearchQuery)) {
-                        continue;
-                    }
-                }
-                
-                // Apply chip filter if any
-                if (!currentChipFilter.isEmpty()) {
-                    String symbol = opportunity.getNormalizedSymbol() != null ? 
-                        opportunity.getNormalizedSymbol().toUpperCase(Locale.getDefault()) : "";
-                    if (!symbol.contains(currentChipFilter)) {
-                        continue;
-                    }
-                }
-                
-                // Apply advanced filters
-                if (!opportunityMatchesAdvancedFilters(opportunity)) {
-                    continue;
-                }
-                
-                // If it passed all filters, add to the filtered list
-                filteredList.add(opportunity);
-            } catch (Exception e) {
-                Log.e("OpportunitiesFragment", "Error filtering opportunity: " + e.getMessage(), e);
-                // Continue with next opportunity on error
-            }
-        }
-        
-        return filteredList;
-    }
-
-    /**
      * Shows the filter bottom sheet dialog
      */
     private void showFilterBottomSheet() {
         if (getActivity() != null && isAdded()) {
-            // Ensure currentFilter is not null before passing
-            if (currentFilter == null) {
-                currentFilter = new ArbitrageFilterBottomSheet.FilterCriteria();
+            // Ensure currentAppliedFilterCriteria is not null before passing to BottomSheet
+            if (currentAppliedFilterCriteria == null) {
+                currentAppliedFilterCriteria = new ArbitrageFilterBottomSheet.FilterCriteria();
             }
-            ArbitrageFilterBottomSheet bottomSheet = ArbitrageFilterBottomSheet.newInstance(currentFilter);
+            
+            // Decision: If the inline panel is visible AND has been interacted with (i.e., its state differs from the currentAppliedFilterCriteria),
+            // should we pre-fill the BottomSheet with the inline panel's values?
+            // For now, we pass currentAppliedFilterCriteria as is. The user can explicitly use the inline panel's "Apply" button
+            // to update currentAppliedFilterCriteria if they want those values reflected in the BottomSheet.
+            
+            ArbitrageFilterBottomSheet bottomSheet = ArbitrageFilterBottomSheet.newInstance(currentAppliedFilterCriteria);
             bottomSheet.setFilterListener(new ArbitrageFilterBottomSheet.FilterListener() {
                 @Override
                 public void onFiltersApplied(ArbitrageFilterBottomSheet.FilterCriteria filters) {
                     if (filters != null) {
-                        currentFilter = filters;
-                        applyFilters();
+                        currentAppliedFilterCriteria = filters; // This is the new source of truth
+                        applyFiltersAndSort(); 
                         updateFilterFabAppearance();
-                        Log.d("OpportunitiesFragment", "Filters applied: " + filters.toString());
+                        updateFilterInfo(); // Update summary based on new criteria
+                        Log.d("OpportunitiesFragment", "BottomSheet Filters applied: " + filters.toString());
                     } else {
-                        Log.d("OpportunitiesFragment", "Received null filters");
+                        Log.d("OpportunitiesFragment", "Received null filters from BottomSheet");
                     }
                 }
             });
@@ -1075,95 +1083,104 @@ public class OpportunitiesFragment extends Fragment implements FilterBottomSheet
      */
     @Override
     public void onFiltersApplied(FilterCriteria filter) {
-        // This method seems to be for FilterBottomSheet (a different filter UI)
-        // We need to decide if we keep both or consolidate.
-        // For now, let's assume currentFilter (ArbitrageFilterBottomSheet.FilterCriteria) is the primary one.
-        // If 'filter' (com.example.tradient.ui.filter.FilterCriteria) is still needed,
-        // we might need to convert or handle it separately.
-
-        // Example: if (filter instanceof com.example.tradient.ui.filter.FilterCriteria) { ... }
-        // Or, if ArbitrageFilterBottomSheet is the sole source of truth for filtering:
-        // this.currentFilter = convertToArbitrageFilterCriteria(filter);
-
-        Log.d("OpportunitiesFragment", "onFiltersApplied (FilterBottomSheet.FilterAppliedListener): " + filter.toString());
-        // If you need to update the main currentFilter used by ArbitrageFilterBottomSheet:
-        // You might need a conversion method if the FilterCriteria types are different and incompatible.
-        // For now, just logging. Consider if currentFilter should be updated here.
-        // applyFilters();
-        // updateFilterFabAppearance();
+        // This is the callback from the old FilterBottomSheet.FilterAppliedListener
+        // It should not be confused with the ArbitrageFilterBottomSheet.FilterListener
+        Log.d("OpportunitiesFragment", "onFiltersApplied (Deprecated Listener - FilterCriteria): " + filter.toString());
+        // If this is still somehow active and intended, you need to decide how it interacts
+        // with currentAppliedFilterCriteria from ArbitrageFilterBottomSheet.
     }
     
     /**
      * Updates the filter FAB to show if filters are active
      */
     private void updateFilterFabAppearance() {
-        if (currentFilter.hasActiveFilters()) {
-            // Show active state
+        if (filterFab == null) return;
+        if (currentAppliedFilterCriteria != null && currentAppliedFilterCriteria.hasActiveFilters()) {
             filterFab.setImageResource(R.drawable.ic_filter_active);
-            // You might also want to add a badge or change background color
+            // Consider adding a badge or visual cue if specific types of filters are active
         } else {
-            // Show inactive state
-            filterFab.setImageResource(R.drawable.ic_filter);
+            filterFab.setImageResource(R.drawable.ic_filter); // Default/inactive icon
         }
     }
     
     /**
      * Applies the current filters to the data
      */
-    private void applyFilters() {
-        filterOpportunities();
-        updateFilterInfo();
+    private void applyFilters() { // This method is called by the old FilterBottomSheet.FilterAppliedListener
+                                 // We should consolidate to applyFiltersAndSort()
+        Log.w("OpportunitiesFragment", "applyFilters() called - check if this is from legacy listener");
+        applyFiltersAndSort();
     }
 
     private void updateFilterInfo() {
-        if (filterChipGroup == null) return; // Ensure views are initialized
-
-        StringBuilder filterInfo = new StringBuilder();
-        boolean hasActiveFilters = false;
-
-        if (currentFilter.getMinProfitPercentage() > 0) {
-            filterInfo.append("Min profit: $").append(currentFilter.getMinProfitPercentage()).append(", ");
-            hasActiveFilters = true;
+        // This method updates the top quick filter display area (filterChipGroup, not the inline panel)
+        // to show a summary of active ArbitrageFilterBottomSheet criteria.
+        if (getContext() == null || getView() == null) return; // Need context for Chips and view for findViewById
+        
+        // Get the filter summary scroll view
+        HorizontalScrollView filterSummaryScrollView = getView().findViewById(R.id.filter_summary_scroll_view);
+        if (filterSummaryScrollView == null) { 
+            Log.w("OpportunitiesFragment", "filterSummaryScrollView is null in updateFilterInfo.");
         }
-        if (currentFilter.getMaxProfitPercentage() < 50.0) {
-            filterInfo.append("Max profit: $").append(currentFilter.getMaxProfitPercentage()).append(", ");
-            hasActiveFilters = true;
+
+        ChipGroup activeFiltersSummaryChipGroup = getView().findViewById(R.id.filter_chip_group_summary_placeholder);
+
+        if (activeFiltersSummaryChipGroup == null) {
+            Log.w("OpportunitiesFragment", "ChipGroup R.id.filter_chip_group_summary_placeholder not found. Filter summary will not be displayed.");
+            if (filterSummaryScrollView != null) filterSummaryScrollView.setVisibility(View.GONE); 
+            return; 
         }
-        // TODO: Add other active filters from currentFilter (ArbitrageFilterBottomSheet.FilterCriteria)
-        // Example:
-        // if (currentFilter.getMaxSlippagePercentage() < 2.0) {
-        //     filterInfo.append("Max Slippage: ").append(currentFilter.getMaxSlippagePercentage()).append("%, ");
-        //     hasActiveFilters = true;
-        // }
+        
+        activeFiltersSummaryChipGroup.removeAllViews();
 
-        // The getCryptocurrencies method is not available on ArbitrageFilterBottomSheet.FilterCriteria
-        // Commenting out for now.
-        // if (!currentFilter.getCryptocurrencies().isEmpty()) {
-        // filterInfo.append("Cryptos: ").append(currentFilter.getCryptocurrencies());
-        // hasActiveFilters = true;
-        // }
+        if (currentAppliedFilterCriteria != null && currentAppliedFilterCriteria.hasActiveFilters()) {
+            String summary = currentAppliedFilterCriteria.getFilterSummary(); // getFilterSummary() no longer takes context
 
-        filterChipGroup.removeAllViews(); // Clear existing chips
-
-        if (hasActiveFilters) {
-            // Remove trailing comma and space
-            if (filterInfo.length() > 2 && filterInfo.substring(filterInfo.length() - 2).equals(", ")) {
-                filterInfo.setLength(filterInfo.length() - 2);
+            if (summary != null && !summary.isEmpty()) {
+                Chip filterSummaryChip = new Chip(getContext());
+                filterSummaryChip.setText(summary);
+                filterSummaryChip.setCloseIconVisible(true);
+                filterSummaryChip.setOnCloseIconClickListener(v -> {
+                    resetAllFilters(); // Resetting all filters when the summary chip is closed
+                });
+                activeFiltersSummaryChipGroup.addView(filterSummaryChip);
+                // Make the scroll view for this summary group visible only if the group itself is visible and has content
+                if (filterSummaryScrollView != null) { 
+                    filterSummaryScrollView.setVisibility(View.VISIBLE);
+                }
+            } else {
+                 // No summary string, but filters are active - show generic message or hide
+                 // For now, if summary is empty, we hide the scroll view.
+                 if (filterSummaryScrollView != null) filterSummaryScrollView.setVisibility(View.GONE);
             }
-
-            Chip filterChip = new Chip(getContext());
-            filterChip.setText(filterInfo.toString());
-            filterChip.setCloseIconVisible(true);
-            filterChip.setOnCloseIconClickListener(v -> {
-                // Resetting to default ArbitrageFilterBottomSheet.FilterCriteria
-                currentFilter = new ArbitrageFilterBottomSheet.FilterCriteria();
-                applyFilters();
-                updateFilterFabAppearance();
-            });
-            filterChipGroup.addView(filterChip);
-            filterChipsScrollView.setVisibility(View.VISIBLE);
         } else {
-            filterChipsScrollView.setVisibility(View.GONE);
+            // No active filters from currentAppliedFilterCriteria
+            if (filterSummaryScrollView != null) filterSummaryScrollView.setVisibility(View.GONE);
         }
+    }
+
+    /**
+     * Maps the raw slider value (e.g., 1-10) from the inline risk slider 
+     * to the appropriate risk level string constant defined in FilterCriteria.
+     */
+    private String mapSliderValueToFilterCriteriaRiskLevel(float sliderValue) {
+        double riskScore = convertRiskSliderToScore(sliderValue); // Converts 1-10 slider to 0.0-1.0 score
+        
+        // These thresholds should align with how risk scores are interpreted elsewhere,
+        // and with the string constants in FilterCriteria.
+        if (riskScore >= 0.75) return "Low"; //FilterCriteria.RISK_LEVEL_LOW;
+        if (riskScore >= 0.4) return "Medium"; //FilterCriteria.RISK_LEVEL_MEDIUM;
+        if (riskScore >= 0.1) return "High"; //FilterCriteria.RISK_LEVEL_HIGH;
+        return "Very High"; //FilterCriteria.RISK_LEVEL_VERY_HIGH; // Lowest scores map to Very High risk
+    }
+
+    private List<ArbitrageOpportunity> filterOpportunities() {
+        if (allOpportunities == null) {
+            return new ArrayList<>();
+        }
+        // Apply all filters: simple search, top chip, and then advanced/inline logic
+        return allOpportunities.stream()
+                .filter(this::opportunityMatchesAdvancedFilters) // This now handles all filter logic
+                .collect(Collectors.toList());
     }
 } 

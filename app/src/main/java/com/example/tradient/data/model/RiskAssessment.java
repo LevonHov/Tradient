@@ -79,8 +79,8 @@ public class RiskAssessment implements Parcelable {
         this.marketDepthScore = 0.5;
         this.executionSpeedRisk = 0.5;
         this.slippageRisk = 0.01;      // Default 1% slippage risk
-        this.buyFeePercentage = 0.1;   // Default 0.1% buy fee
-        this.sellFeePercentage = 0.1;  // Default 0.1% sell fee
+        this.buyFeePercentage = 0.001;   // Default 0.1% buy fee
+        this.sellFeePercentage = 0.001;  // Default 0.1% sell fee
         
         // Set default risk level
         this.riskLevel = RISK_LEVEL_MEDIUM;

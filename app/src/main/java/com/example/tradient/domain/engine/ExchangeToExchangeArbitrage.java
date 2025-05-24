@@ -144,13 +144,55 @@ public class ExchangeToExchangeArbitrage implements IArbitrageEngine {
             return createArbitrageOpportunity(
                 pair, buyExchange, sellExchange,
                 buyPrice, sellPrice, profitPercentage,
-                buyFee.calculateFee(10000) / 10000, sellFee.calculateFee(10000) / 10000,
+                calculateAccurateExchangeFee(buyExchange.getExchangeName(), true), 
+                calculateAccurateExchangeFee(sellExchange.getExchangeName(), false),
                 isBuyMaker, isSellMaker
             );
             
         } catch (Exception e) {
             logError("Error calculating arbitrage for " + pair.getSymbol(), e);
             return null;
+        }
+    }
+
+    /**
+     * Calculates an accurate exchange fee based on the current standard rates
+     * 
+     * @param exchangeName The name of the exchange
+     * @param isMaker Whether this is a maker (true) or taker (false) operation
+     * @return The accurate fee percentage as a decimal (e.g., 0.0004 for 0.04%)
+     */
+    private double calculateAccurateExchangeFee(String exchangeName, boolean isMaker) {
+        if (exchangeName == null) return 0.001; // Default 0.1%
+        
+        String exchange = exchangeName.toLowerCase();
+        
+        if (isMaker) {
+            // Maker fees
+            switch (exchange) {
+                case "binance": return 0.0002; // 0.02% maker fee (spot)
+                case "coinbase": return 0.0040; // 0.40% maker fee
+                case "kraken": return 0.0016;  // 0.16% maker fee
+                case "bybit": return 0.0001;   // 0.01% maker fee
+                case "okx": return 0.0008;     // 0.08% maker fee
+                case "kucoin": return 0.0008;  // 0.08% maker fee
+                case "gemini": return 0.0025;  // 0.25% maker fee
+                case "bitfinex": return 0.0010; // 0.10% maker fee
+                default: return 0.0010;        // Default 0.10% maker fee
+            }
+        } else {
+            // Taker fees
+            switch (exchange) {
+                case "binance": return 0.0004; // 0.04% taker fee (spot)
+                case "coinbase": return 0.0060; // 0.60% taker fee
+                case "kraken": return 0.0026;  // 0.26% taker fee
+                case "bybit": return 0.0010;   // 0.10% taker fee
+                case "okx": return 0.0010;     // 0.10% taker fee
+                case "kucoin": return 0.0010;  // 0.10% taker fee
+                case "gemini": return 0.0035;  // 0.35% taker fee
+                case "bitfinex": return 0.0020; // 0.20% taker fee
+                default: return 0.0010;        // Default 0.10% taker fee
+            }
         }
     }
 

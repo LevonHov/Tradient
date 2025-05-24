@@ -203,13 +203,17 @@ public class ArbitrageRepository {
         // For now, return default values based on exchange name
         switch (exchangeName.toLowerCase()) {
             case "binance":
-                return 0.001; // 0.1%
+                return 0.0004; // 0.04% taker fee (spot)
             case "coinbase":
-                return 0.005; // 0.5%
+                return 0.0060; // 0.60% taker fee
             case "kraken":
-                return 0.0026; // 0.26%
+                return 0.0026; // 0.26% taker fee
+            case "bybit":
+                return 0.0010; // 0.10% taker fee
+            case "okx":
+                return 0.0010; // 0.10% taker fee
             default:
-                return 0.003; // Default fee 0.3%
+                return 0.0010; // Default fee 0.10%
         }
     }
     
